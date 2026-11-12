@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#090d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Presensi Pegawai</title>
+
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./assets/icon-192.png">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- MediaPipe Face Mesh -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    html, body {
+      overscroll-behavior: none;
+      background-color: #090d16;
+      color: #f8fafc;
+      height: 100%;
+      overflow-x: hidden;
+    }
+    /* Panduan bingkai oval wajah */
+    .oval-guide {
+      width: 240px;
+      height: 320px;
+      border-radius: 50%;
+      border: 3px dashed rgba(56, 189, 248, 0.85);
+      box-shadow: 0 0 0 9999px rgba(9, 13, 22, 0.68);
+      transition: border-color 0.25s ease, transform 0.25s ease;
+    }
+    .oval-guide.ready {
+      border-style: solid;
+      border-color: #22c55e;
+      transform: scale(1.03);
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen font-sans antialiased">
+
+  <!-- =====================================================================
+       GERBANG 1: INSTALL GATE (Aktif jika dibuka di tab browser biasa)
+       ===================================================================== -->
+  <section id="install-gate" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center">
+    <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+      <div class="w-16 h-16 mx-auto mb-5 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-3xl">
+        🔒
+      </div>
+      <h1 class="text-xl font-bold tracking-tight text-white mb-2">Instal Aplikasi Wajib</h1>
+      <p class="text-sm text-slate-400 leading-relaxed mb-6">
+        Demi penguncian layar penuh, keamanan gawai, dan validasi GPS, sistem presensi hanya aktif setelah aplikasi dipasang di layar utama perangkat Anda.
+      </p>
+
+      <button id="btn-install-pwa" class="hidden w-full py-3.5 px-5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-[0.99] text-white font-semibold text-sm transition shadow-lg shadow-sky-600/20 mb-4">
+        Pasang Aplikasi ke Layar Utama
+      </button>
+
+      <div id="install-instructions" class="text-left bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 text-xs text-slate-400 space-y-2">
+        <p class="font-semibold text-slate-200">Cara Instalasi Manual:</p>
+        <ol class="list-decimal list-inside space-y-1.5">
+          <li>Ketuk ikon menu <strong>⋮</strong> (pojok kanan atas Chrome) atau tombol <strong>Bagikan</strong> (Safari iOS).</li>
+          <li>Pilih <strong>"Tambahkan ke Layar Utama"</strong> atau <strong>"Instal Aplikasi"</strong>.</li>
+          <li>Tutup browser ini dan buka ikon <strong>Presensi</strong> dari beranda ponsel.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       GERBANG 2: APLIKASI UTAMA (Hanya dimuat saat mode PWA Standalone/Fullscreen)
+       ===================================================================== -->
+  <main id="app-main" class="hidden flex-1 flex flex-col justify-between p-5 max-w-md w-full mx-auto">
+
+    <!-- Header Status -->
+    <header class="flex items-center justify-between py-2 border-b border-slate-800/80">
+      <div>
+        <h2 class="text-base font-bold text-white tracking-tight">Presensi Pegawai</h2>
+        <p id="device-badge" class="text-[11px] font-mono text-slate-500">ID: Memuat...</p>
+      </div>
+      <button id="btn-fullscreen-lock" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700">
+        Layar Penuh
+      </button>
+    </header>
+
+    <!-- VIEW A: FORM LOGIN -->
+    <section id="view-login" class="my-auto py-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+        <div class="mb-6">
+          <h3 class="text-lg font-bold text-white">Autentikasi Pegawai</h3>
+          <p class="text-xs text-slate-400 mt-1">Akun terkunci otomatis pada gawai pertama yang digunakan masuk.</p>
+        </div>
+
+        <form id="login-form" class="space-y-4">
+          <div>
+            <label for="input-nip" class="block text-xs font-medium text-slate-300 mb-1.5">NIP / Email Pegawai</label>
+            <input type="text" id="input-nip" required autocomplete="username" placeholder="Contoh: 199002122019031012"
+              class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-sky-500">
+          </div>
+
+          <div>
+            <label for="input-password" class="block text-xs font-medium text-slate-300 mb-1.5">Kata Sandi</label>
+            <input type="password" id="input-password" required autocomplete="current-password" placeholder="••••••••"
+              class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-sky-500">
+          </div>
+
+          <div id="login-alert" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300"></div>
+
+          <button type="submit" id="btn-submit-login"
+            class="w-full py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-[0.99] text-white font-semibold text-sm transition shadow-lg shadow-sky-600/20">
+            Masuk & Verifikasi Lokasi
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- VIEW B: VERIFIKASI LOKASI -->
+    <section id="view-location" class="hidden my-auto py-6 text-center">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-full border-4 border-sky-500 border-t-transparent animate-spin"></div>
+        <h3 class="text-base font-bold text-white">Memverifikasi Koordinat GPS...</h3>
+        <p id="geo-status-text" class="text-xs text-slate-400 mt-2 leading-relaxed">
+          Memeriksa radius lokasi kantor dan integritas sensor perangkat. Pastikan GPS Akurasi Tinggi aktif.
+        </p>
+        <div id="geo-error-box" class="hidden mt-5 text-left bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4">
+          <p id="geo-error-msg" class="text-xs text-rose-300 mb-3"></p>
+          <button id="btn-retry-geo" class="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold">
+            Coba Periksa Lokasi Lagi
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW C: KAMERA LIVENESS DETECTION & AUTO-CAPTURE -->
+    <section id="view-camera" class="hidden my-auto py-4 flex flex-col items-center">
+      <div class="w-full bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3 px-1">
+          <span class="text-xs font-semibold text-emerald-400">● Lokasi Terverifikasi</span>
+          <span id="gps-accuracy-badge" class="text-[11px] font-mono text-slate-400">Akurasi: --m</span>
+        </div>
+
+        <!-- Viewport Kamera -->
+        <div class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden flex items-center justify-center">
+          <video id="camera-video" autoplay playsinline muted class="w-full h-full object-cover scale-x-[-1]"></video>
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div id="face-oval" class="oval-guide"></div>
+          </div>
+          <div class="absolute bottom-3 inset-x-3 bg-slate-950/85 backdrop-blur-sm border border-slate-800 rounded-xl px-3 py-2.5 text-center">
+            <p id="liveness-instruction" class="text-xs font-semibold text-sky-300">
+              Posisikan wajah di dalam bingkai oval...
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW D: BUKTI PRESENSI TERKIRIM -->
+    <section id="view-success" class="hidden my-auto py-6 text-center">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+        <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-2xl">
+          ✅
+        </div>
+        <h3 class="text-lg font-bold text-white">Presensi Berhasil Dicatat</h3>
+        <p id="receipt-time" class="text-xs text-slate-400 mt-1"></p>
+
+        <div class="my-4 rounded-2xl overflow-hidden border border-slate-800 aspect-[3/4] max-h-64 mx-auto bg-black">
+          <img id="receipt-photo" alt="Bukti Selfie" class="w-full h-full object-cover">
+        </div>
+
+        <div class="bg-slate-950 rounded-xl p-3 text-left text-xs space-y-1 text-slate-400 border border-slate-800/80 mb-5">
+          <p><strong>Status:</strong> <span class="text-emerald-400">Terverifikasi Server</span></p>
+          <p id="receipt-size"><strong>Ukuran Berkas:</strong> -- KB</p>
+          <p id="receipt-coords"><strong>Koordinat:</strong> --</p>
+        </div>
+
+        <button id="btn-finish-exit" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold">
+          Selesai & Kunci Sesi
+        </button>
+      </div>
+    </section>
+
+    <footer class="text-center py-2 text-[11px] text-slate-600">
+      Sistem Keamanan Presensi Terenkripsi
+    </footer>
+  </main>
+
+  <!-- =====================================================================
+       SCRIPT INTI APLIKASI (ES MODULE)
+       ===================================================================== -->
+  <script type="module">
+    // ===================================================================
+    // 0. KONFIGURASI UTAMA (SESUAIKAN DENGAN PROYEK SUPABASE ANDA)
+    // ===================================================================
+    const CONFIG = {
+      SUPABASE_URL: 'https://GANTI-PROJECT-ID.supabase.co',
+      SUPABASE_ANON_KEY: 'GANTI-DENGAN-SUPABASE-ANON-KEY',
+      DEFAULT_EMAIL_DOMAIN: 'instansi.id', // Dipakai jika pegawai login hanya ketik NIP
+      TARGET_PHOTO_MAX_KB: 210,            // Target batas atas kompresi JPEG (~200KB)
+      MAX_GPS_ACCURACY_METERS: 120,        // Tolak jika akurasi GPS terlalu buruk
+      DEV_BYPASS_PWA_GATE: false           // Ubah ke true HANYA saat pengujian di browser desktop
+    };
+
+    // Registrasi Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+          console.warn('SW gagal terdaftar:', err);
+        });
+      });
+    }
+
+    // ===================================================================
+    // 1. PWA INSTALL GATE & FULLSCREEN KIOSK LOCK
+    // ===================================================================
+    let deferredInstallPrompt = null;
+
+    function isInstalledPWA() {
+      if (CONFIG.DEV_BYPASS_PWA_GATE) return true;
+      return (
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.navigator.standalone === true
+      );
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const btnInstall = document.getElementById('btn-install-pwa');
+      btnInstall.classList.remove('hidden');
+      btnInstall.onclick = async () => {
+        if (!deferredInstallPrompt) return;
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        btnInstall.classList.add('hidden');
+      };
+    });
+
+    window.addEventListener('appinstalled', () => {
+      document.getElementById('install-instructions').innerHTML = `
+        <p class="text-emerald-400 font-semibold">✅ Aplikasi berhasil terpasang! Tutup browser ini dan buka ikon Presensi dari layar utama HP Anda.</p>
+      `;
+    });
+
+    function enforceFullscreenAndBackLock() {
+      const requestFS = () => {
+        const el = document.documentElement;
+        if (!document.fullscreenElement) {
+          if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+          else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        }
+      };
+
+      // Aktifkan fullscreen saat interaksi pertama atau klik tombol
+      document.addEventListener('pointerdown', requestFS, { once: true });
+      document.getElementById('btn-fullscreen-lock').addEventListener('click', requestFS);
+
+      // Cegah navigasi tombol Back Android
+      history.pushState(null, '', location.href);
+      window.addEventListener('popstate', () => {
+        history.pushState(null, '', location.href);
+        requestFS();
+      });
+
+      // Blokir klik kanan / long-press context menu
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    // ===================================================================
+    // 2. PERSISTENT DEVICE ID (INDEXEDDB + LOCALSTORAGE)
+    // ===================================================================
+    async function getOrCreatePersistentDeviceId() {
+      const STORAGE_KEY = 'PRESENSI_BOUND_DEVICE_UUID';
+
+      const readFromIDB = () => new Promise((resolve) => {
+        const req = indexedDB.open('PresensiSecurityDB', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('kv');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('kv', 'readonly');
+          const getReq = tx.objectStore('kv').get(STORAGE_KEY);
+          getReq.onsuccess = () => resolve(getReq.result || null);
+          getReq.onerror = () => resolve(null);
+        };
+        req.onerror = () => resolve(null);
+      });
+
+      const writeToIDB = (val) => new Promise((resolve) => {
+        const req = indexedDB.open('PresensiSecurityDB', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('kv');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('kv', 'readwrite');
+          tx.objectStore('kv').put(val, STORAGE_KEY);
+          tx.oncomplete = () => resolve();
+        };
+        req.onerror = () => resolve();
+      });
+
+      let id = localStorage.getItem(STORAGE_KEY) || (await readFromIDB());
+      if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+          (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+        );
+      }
+
+      localStorage.setItem(STORAGE_KEY, id);
+      await writeToIDB(id);
+      return id;
+    }
+
+    // ===================================================================
+    // 3. GEOLOCATION & HEURISTIK ANTI-MOCK LOCATION
+    // ===================================================================
+    function getVerifiedCoordinates() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          return reject(new Error('Sensor GPS tidak tersedia pada perangkat ini.'));
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude, accuracy } = pos.coords;
+            const driftMs = Math.abs(Date.now() - pos.timestamp);
+
+            // Heuristik 1: Aplikasi Fake GPS sering menghasilkan akurasi 0.0 atau tidak wajar
+            if (accuracy <= 0 || accuracy > CONFIG.MAX_GPS_ACCURACY_METERS) {
+              return reject(new Error(`Akurasi GPS mencurigakan (${Math.round(accuracy)}m). Nonaktifkan Mock Location / Opsi Pengembang dan pindah ke area terbuka.`));
+            }
+
+            // Heuristik 2: Timestamp GPS kedaluwarsa / diinjeksi ulang
+            if (driftMs > 20000) {
+              return reject(new Error('Sinyal GPS tidak sinkron dengan waktu sistem. Muat ulang lokasi.'));
+            }
+
+            resolve({ latitude, longitude, accuracy });
+          },
+          (err) => {
+            if (err.code === 1) reject(new Error('Izin lokasi ditolak. Aktifkan izin lokasi untuk aplikasi ini di Pengaturan HP.'));
+            else if (err.code === 2) reject(new Error('Sinyal GPS tidak ditemukan. Aktifkan GPS / Lokasi perangkat.'));
+            else reject(new Error('Waktu habis saat mencari titik GPS. Coba kembali.'));
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
+    // ===================================================================
+    // 4. LIVENESS DETECTION (MEDIAPIPE BLINK) & KOMPRESI ~200KB
+    // ===================================================================
+    function distance2D(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    // Hitung Eye Aspect Ratio (EAR) dari 6 titik kelopak mata
+    function computeEAR(landmarks, idx) {
+      const vertical1 = distance2D(landmarks[idx[1]], landmarks[idx[5]]);
+      const vertical2 = distance2D(landmarks[idx[2]], landmarks[idx[4]]);
+      const horizontal = distance2D(landmarks[idx[0]], landmarks[idx[3]]);
+      return (vertical1 + vertical2) / (2.0 * horizontal);
+    }
+
+    async function compressCanvasToTargetKB(canvas, maxKB) {
+      let quality = 0.78;
+      let blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality));
+      while (blob.size / 1024 > maxKB && quality > 0.35) {
+        quality -= 0.08;
+        blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality));
+      }
+      return blob;
+    }
+
+    async function startLivenessCameraAndCapture(onCapturedBlob) {
+      const videoEl = document.getElementById('camera-video');
+      const ovalEl = document.getElementById('face-oval');
+      const statusEl = document.getElementById('liveness-instruction');
+
+      // Cek kamera virtual / fake cam
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasVirtualCam = devices.some(
+        (d) => d.kind === 'videoinput' && /obs|virtual|manycam|fake|droidcam/i.test(d.label)
+      );
+      if (hasVirtualCam) {
+        throw new Error('Kamera virtual terdeteksi. Gunakan kamera asli perangkat.');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } },
+        audio: false
+      });
+      videoEl.srcObject = stream;
+      await videoEl.play();
+
+      const LEFT_EYE = [33, 160, 158, 133, 153, 144];
+      const RIGHT_EYE = [362, 385, 387, 263, 373, 380];
+
+      let blinkDetectedClosed = false;
+      let isProcessingCapture = false;
+      let active = true;
+
+      const faceMesh = new window.FaceMesh({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+      });
+
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.7,
+        minTrackingConfidence: 0.7
+      });
+
+      faceMesh.onResults(async (results) => {
+        if (!active || isProcessingCapture) return;
+
+        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+          ovalEl.classList.remove('ready');
+          statusEl.textContent = 'Wajah tidak terdeteksi. Arahkan wajah ke bingkai oval.';
+          blinkDetectedClosed = false;
+          return;
+        }
+
+        const lm = results.multiFaceLandmarks[0];
+        const nose = lm[1];
+        const faceWidth = distance2D(lm[234], lm[454]);
+
+        // Validasi posisi wajah di tengah bingkai oval & jarak proporsional
+        const isCentered = nose.x > 0.35 && nose.x < 0.65 && nose.y > 0.32 && nose.y < 0.68;
+        const isGoodSize = faceWidth > 0.28 && faceWidth < 0.72;
+
+        if (!isCentered || !isGoodSize) {
+          ovalEl.classList.remove('ready');
+          statusEl.textContent = 'Posisikan wajah tepat di tengah bingkai oval...';
+          blinkDetectedClosed = false;
+          return;
+        }
+
+        ovalEl.classList.add('ready');
+        const avgEAR = (computeEAR(lm, LEFT_EYE) + computeEAR(lm, RIGHT_EYE)) / 2;
+
+        // Tahap 1: Mata terdeteksi menutup (kedip)
+        if (avgEAR < 0.19) {
+          blinkDetectedClosed = true;
+          statusEl.textContent = 'Bagus! Sekarang buka mata kembali...';
+        }
+        // Tahap 2: Mata terbuka kembali -> Terverifikasi Manusia -> Auto Capture
+        else if (blinkDetectedClosed && avgEAR > 0.23) {
+          isProcessingCapture = true;
+          active = false;
+          statusEl.textContent = 'Manusia terverifikasi! Mengambil & mengompres foto...';
+
+          const canvas = document.createElement('canvas');
+          canvas.width = 720;
+          canvas.height = 960;
+          const ctx = canvas.getContext('2d');
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
+          // Hentikan stream kamera segera
+          stream.getTracks().forEach((t) => t.stop());
+
+          const compressedBlob = await compressCanvasToTargetKB(canvas, CONFIG.TARGET_PHOTO_MAX_KB);
+          onCapturedBlob(compressedBlob);
+        } else {
+          statusEl.textContent = 'Wajah siap. Silakan KEDIPKAN MATA untuk mengambil foto otomatis.';
+        }
+      });
+
+      const processVideoFrame = async () => {
+        if (!active) return;
+        if (videoEl.readyState >= 2) {
+          await faceMesh.send({ image: videoEl });
+        }
+        requestAnimationFrame(processVideoFrame);
+      };
+      requestAnimationFrame(processVideoFrame);
+    }
+
+    // ===================================================================
+    // 5. ORKESTRASI UTAMA APLIKASI (HANYA BERJALAN JIKA PWA TERINSTAL)
+    // ===================================================================
+    async function bootstrapAttendanceApp() {
+      const gateEl = document.getElementById('install-gate');
+      const mainEl = document.getElementById('app-main');
+
+      if (!isInstalledPWA()) {
+        gateEl.classList.remove('hidden');
+        mainEl.remove();
+        return;
+      }
+
+      gateEl.remove();
+      mainEl.classList.remove('hidden');
+      enforceFullscreenAndBackLock();
+
+      const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+      const deviceId = await getOrCreatePersistentDeviceId();
+      document.getElementById('device-badge').textContent = `Gawai: ${deviceId.slice(0, 8)}...`;
+
+      let currentUser = null;
+      let verifiedCoords = null;
+
+      const switchView = (viewId) => {
+        ['view-login', 'view-location', 'view-camera', 'view-success'].forEach((id) => {
+          document.getElementById(id).classList.toggle('hidden', id !== viewId);
+        });
+      };
+
+      // Proses Login & Penguncian Gawai (1 Akun = 1 Gawai)
+      document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const alertBox = document.getElementById('login-alert');
+        const btnSubmit = document.getElementById('btn-submit-login');
+        alertBox.classList.add('hidden');
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Memeriksa Akun & Gawai...';
+
+        try {
+          const rawNip = document.getElementById('input-nip').value.trim();
+          const password = document.getElementById('input-password').value;
+          const email = rawNip.includes('@') ? rawNip : `${rawNip}@${CONFIG.DEFAULT_EMAIL_DOMAIN}`;
+
+          const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+          if (authErr) throw new Error('NIP atau kata sandi tidak sesuai.');
+
+          currentUser = authData.user;
+
+          // Periksa Device Binding pada tabel profiles
+          const { data: profile, error: profErr } = await supabase
+            .from('profiles')
+            .select('registered_device_id, is_active')
+            .eq('id', currentUser.id)
+            .single();
+
+          if (profErr || !profile) {
+            await supabase.auth.signOut();
+            throw new Error('Data profil pegawai tidak ditemukan.');
+          }
+          if (!profile.is_active) {
+            await supabase.auth.signOut();
+            throw new Error('Akun pegawai dinonaktifkan.');
+          }
+
+          if (!profile.registered_device_id) {
+            // Ikat gawai pertama kali
+            const { error: bindErr } = await supabase
+              .from('profiles')
+              .update({ registered_device_id: deviceId })
+              .eq('id', currentUser.id);
+            if (bindErr) throw new Error('Gagal mendaftarkan identitas gawai.');
+          } else if (profile.registered_device_id !== deviceId) {
+            await supabase.auth.signOut();
+            throw new Error('Akses Ditolak: Akun ini sudah terkunci pada gawai lain. Hubungi admin untuk reset gawai.');
+          }
+
+          // Lanjut ke verifikasi GPS
+          runLocationCheck();
+        } catch (err) {
+          alertBox.textContent = err.message;
+          alertBox.classList.remove('hidden');
+        } finally {
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = 'Masuk & Verifikasi Lokasi';
+        }
+      });
+
+      // Proses Cek Koordinat GPS & Radius Server
+      async function runLocationCheck() {
+        switchView('view-location');
+        const errBox = document.getElementById('geo-error-box');
+        const errMsg = document.getElementById('geo-error-msg');
+        errBox.classList.add('hidden');
+
+        try {
+          verifiedCoords = await getVerifiedCoordinates();
+          document.getElementById('gps-accuracy-badge').textContent = `Akurasi: ±${Math.round(verifiedCoords.accuracy)}m`;
+
+          // Pindah ke kamera Liveness Detection
+          switchView('view-camera');
+          await startLivenessCameraAndCapture(handlePhotoUploadAndSubmit);
+        } catch (err) {
+          errMsg.textContent = err.message;
+          errBox.classList.remove('hidden');
+        }
+      }
+
+      document.getElementById('btn-retry-geo').addEventListener('click', runLocationCheck);
+
+      // Proses Upload Foto Terkompresi (~200KB) & Simpan Presensi ke RPC Supabase
+      async function handlePhotoUploadAndSubmit(photoBlob) {
+        const statusEl = document.getElementById('liveness-instruction');
+        statusEl.textContent = 'Mengunggah bukti presensi ke server...';
+
+        try {
+          const filePath = `${currentUser.id}/${Date.now()}.jpg`;
+
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('bukti-presensi')
+            .upload(filePath, photoBlob, { contentType: 'image/jpeg', upsert: false });
+
+          if (uploadErr) throw new Error(`Gagal unggah foto: ${uploadErr.message}`);
+
+          // Panggil RPC Supabase untuk validasi radius Haversine & pencatatan waktu server
+          const { data: rpcResult, error: rpcErr } = await supabase.rpc('validate_and_record_attendance', {
+            p_device_id: deviceId,
+            p_lat: verifiedCoords.latitude,
+            p_lng: verifiedCoords.longitude,
+            p_foto_url: uploadData.path
+          });
+
+          if (rpcErr) throw new Error(`Kesalahan server: ${rpcErr.message}`);
+          if (!rpcResult || !rpcResult.success) {
+            throw new Error(rpcResult?.message || 'Posisi Anda berada di luar radius yang diizinkan.');
+          }
+
+          // Tampilkan layar bukti berhasil
+          const sizeKB = (photoBlob.size / 1024).toFixed(1);
+          document.getElementById('receipt-photo').src = URL.createObjectURL(photoBlob);
+          document.getElementById('receipt-time').textContent = new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' });
+          document.getElementById('receipt-size').innerHTML = `<strong>Ukuran Berkas:</strong> ${sizeKB} KB`;
+          document.getElementById('receipt-coords').innerHTML = `<strong>Koordinat:</strong> ${verifiedCoords.latitude.toFixed(6)}, ${verifiedCoords.longitude.toFixed(6)}`;
+
+          switchView('view-success');
+        } catch (err) {
+          alert(err.message);
+          runLocationCheck();
+        }
+      }
+
+      document.getElementById('btn-finish-exit').addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        location.reload();
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', bootstrapAttendanceApp);
+  </script>
+</body>
+</html>
