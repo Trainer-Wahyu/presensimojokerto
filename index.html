@@ -15,7 +15,7 @@
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- MediaPipe Face Mesh (Wajib untuk Liveness Detection di camera-liveness.js) -->
+  <!-- MediaPipe Face Mesh -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 
   <style>
@@ -34,7 +34,6 @@
       height: 100%;
       overflow-x: hidden;
     }
-    /* Panduan bingkai oval wajah */
     .oval-guide {
       width: 240px;
       height: 320px;
@@ -101,7 +100,7 @@
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
         <div class="mb-6">
           <h3 class="text-lg font-bold text-white">Autentikasi Pegawai</h3>
-          <p class="text-xs text-slate-400 mt-1">Akun terkunci otomatis pada gawai pertama yang digunakan masuk.</p>
+          <p class="text-xs text-slate-400 mt-1">Jenis presensi (Datang / Pulang) terdeteksi otomatis sesuai jadwal instansi.</p>
         </div>
 
         <form id="login-form" class="space-y-4">
@@ -118,7 +117,7 @@
               class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-sky-500">
           </div>
 
-          <div id="login-alert" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 leading-relaxed"></div>
+          <div id="login-alert" class="hidden p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 leading-relaxed"></div>
 
           <button type="submit" id="btn-submit-login"
             class="w-full py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-[0.99] text-white font-semibold text-sm transition shadow-lg shadow-sky-600/20">
@@ -153,7 +152,6 @@
           <span id="gps-accuracy-badge" class="text-[11px] font-mono text-slate-400">Akurasi: --m</span>
         </div>
 
-        <!-- Viewport Kamera -->
         <div class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden flex items-center justify-center">
           <video id="camera-video" autoplay playsinline muted class="w-full h-full object-cover scale-x-[-1]"></video>
           <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -168,13 +166,16 @@
       </div>
     </section>
 
-    <!-- VIEW D: BUKTI PRESENSI TERKIRIM -->
+    <!-- VIEW D: BUKTI PRESENSI TERKIRIM (DATANG / PULANG DINAMIS) -->
     <section id="view-success" class="hidden my-auto py-6 text-center">
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
         <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-2xl">
           ✅
         </div>
-        <h3 class="text-lg font-bold text-white">Presensi Berhasil Dicatat</h3>
+        <span id="receipt-type-badge" class="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30 mb-2">
+          PRESENSI DATANG
+        </span>
+        <h3 id="receipt-title" class="text-lg font-bold text-white">Berhasil Presensi Datang</h3>
         <p id="receipt-time" class="text-xs text-slate-400 mt-1"></p>
 
         <div class="my-4 rounded-2xl overflow-hidden border border-slate-800 aspect-[3/4] max-h-64 mx-auto bg-black">
@@ -198,7 +199,6 @@
     </footer>
   </main>
 
-  <!-- Orkestrator Utama Modular (Mengimpor supabase-client, pwa-gate, device-id, geo-guard, camera-liveness) -->
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>
