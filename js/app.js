@@ -179,7 +179,7 @@ function bindUIEvents() {
     btnDownloadReceipt.addEventListener('click', handleDownloadReceiptPng);
   }
   if (btnFinishExit) {
-    btnFinishExit.addEventListener('click', handleExitAndCloseApp);
+    btnFinishExit.addEventListener('click', handleReturnToLogin);
   }
   if (btnFullscreen) {
     btnFullscreen.addEventListener('click', () => {
@@ -812,9 +812,15 @@ async function handleDownloadReceiptPng() {
 }
 
 // =====================================================================
-// 11. SELESAI & KELUAR (AKHIRI SESI & TUTUP PWA JIKA DIIZINKAN OS)
+// 11. SELESAI & KEMBALI KE HALAMAN LOGIN
 // =====================================================================
-async function handleExitAndCloseApp() {
+async function handleReturnToLogin() {
+  const btn = document.getElementById('btn-finish-exit');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Mengakhiri Sesi...';
+  }
+
   stopActiveCamera();
   clearPermissionWatcher();
 
@@ -834,13 +840,16 @@ async function handleExitAndCloseApp() {
   const loginForm = document.getElementById('login-form');
   if (loginForm) loginForm.reset();
 
-  switchView('view-login');
-
-  // Coba tutup jendela PWA secara langsung; jika dibatasi kebijakan OS/browser,
-  // layar sudah aman terkunci kembali di halaman login awal.
-  try {
-    window.close();
-  } catch {
-    // Diabaikan jika OS tidak mengizinkan penutupan jendela via skrip
+  const alertBox = document.getElementById('login-alert');
+  if (alertBox) {
+    alertBox.classList.add('hidden');
+    alertBox.textContent = '';
   }
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Selesai & Kembali ke Halaman Login';
+  }
+
+  switchView('view-login');
 }
