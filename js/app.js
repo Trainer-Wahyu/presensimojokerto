@@ -16,7 +16,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // =====================================================================
-// 2. STATE APLIKASI & REFERENSI ELEMEN DOM
+// 2. STATE APLIKASI & NAVIGASI TAMPILAN
 // =====================================================================
 const appState = {
   deviceId: null,
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // 4. SIKLUS HIDUP UTAMA PRESENSI (AKTIF HANYA SAAT PWA TERINSTAL)
 // =====================================================================
 async function bootstrapAttendanceLifecycle() {
-  // Pastikan setiap sesi presensi selalu dimulai dari layar Login baru
+  // Pastikan setiap pembukaan aplikasi selalu dimulai dari layar Login baru
   await supabase.auth.signOut().catch(() => {});
 
   // Buat / pulihkan identitas gawai unik (IndexedDB + localStorage + Hardware Hash)
@@ -112,7 +112,7 @@ async function handleLoginSubmit(event) {
   btnSubmit.textContent = 'Memverifikasi Akun & Gawai...';
 
   try {
-    const rawIdentifier = inputNip.value.trim();
+    const rawIdentifier = inputNip.value.trim().toLowerCase();
     const password = inputPassword.value;
 
     if (!rawIdentifier || !password) {
@@ -121,7 +121,7 @@ async function handleLoginSubmit(event) {
 
     const email = rawIdentifier.includes('@')
       ? rawIdentifier
-      : `${rawIdentifier}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN}`;
+      : `${rawIdentifier}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN.toLowerCase()}`;
 
     // 1. Autentikasi kredensial ke Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -130,14 +130,28 @@ async function handleLoginSubmit(event) {
     });
 
     if (authError || !authData?.user) {
-      throw new Error('Autentikasi gagal: NIP atau kata sandi tidak sesuai.');
+      const rawMsg = authError?.message || 'Kredensial tidak valid';
+
+      if (rawMsg.toLowerCase().includes('email not confirmed')) {
+        throw new Error(
+          `Akun (${email}) belum terkonfirmasi di Supabase. Matikan "Confirm email" di pengaturan Auth atau jalankan kueri konfirmasi email.`
+        );
+      }
+
+      if (rawMsg.toLowerCase().includes('invalid login credentials')) {
+        throw new Error(
+          `Login ditolak untuk akun (${email}). Periksa kembali NIP/Email, kata sandi, dan pengaturan DEFAULT_EMAIL_DOMAIN.`
+        );
+      }
+
+      throw new Error(`Autentikasi gagal (${email}): ${rawMsg}`);
     }
 
     // 2. Validasi kecocokan gawai pada tabel profiles (1 Akun 1 Gawai)
     await validateOrBindDevice(supabase, authData.user.id, appState.deviceId);
 
     appState.currentUser = authData.user;
-    inputPassword.value = ''; // Bersihkan password dari memori DOM
+    inputPassword.value = ''; // Hapus kata sandi dari input DOM setelah valid
 
     // 3. Lanjut otomatis ke tahap pengecekan lokasi GPS
     await runLocationCheckFlow();
@@ -168,7 +182,6 @@ async function runLocationCheckFlow() {
     'Memeriksa titik koordinat GPS dan integritas sensor perangkat. Pastikan GPS Akurasi Tinggi aktif...';
 
   try {
-    // Ambil koordinat bersih dan lolos pemeriksaan heuristik anti-mock
     const coords = await acquireVerifiedCoordinates({
       maxAccuracyMeters: APP_CONFIG.MAX_GPS_ACCURACY_METERS,
       timeoutMs: 15000
@@ -209,7 +222,6 @@ async function runCameraLivenessFlow() {
       onCaptured: handleCapturedAndSubmitAttendance
     });
   } catch (camErr) {
-    // Jika kamera diblokir atau terdeteksi kamera virtual, kembalikan ke tampilan error lokasi dengan pesan jelas
     switchView('view-location');
     const errBox = document.getElementById('geo-error-box');
     const errMsg = document.getElementById('geo-error-msg');
@@ -275,7 +287,7 @@ async function handleCapturedAndSubmitAttendance(compressedPhotoBlob) {
     // 3. Tampilkan layar bukti kehadiran berhasil
     renderSuccessReceipt(compressedPhotoBlob, appState.verifiedCoords);
   } catch (submitErr) {
-    // Hapus file foto yatim di Storage jika validasi radius/RPC server menolak presensi
+    // Bersihkan file foto di Storage jika validasi radius/RPC server menolak presensi
     if (uploadedFilePath) {
       await supabase.storage
         .from(APP_CONFIG.STORAGE_BUCKET)
@@ -283,7 +295,6 @@ async function handleCapturedAndSubmitAttendance(compressedPhotoBlob) {
         .catch(() => {});
     }
 
-    // Tampilkan pesan penolakan di layar lokasi agar pengguna bisa memperbaiki posisi dan mengulang
     switchView('view-location');
     const errBox = document.getElementById('geo-error-box');
     const errMsg = document.getElementById('geo-error-msg');
