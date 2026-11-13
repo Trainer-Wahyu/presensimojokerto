@@ -95,10 +95,12 @@ async function executeWithRetry(operationFn, options = {}) {
 const appState = {
   deviceId: null,
   currentUser: null,
+  userProfile: null,
   activeScheduleType: null, // 'datang' | 'pulang'
   verifiedCoords: null,
   cameraController: null,
   receiptPhotoUrl: null,
+  lastReceiptPayload: null,
   permissionWatcher: null
 };
 
@@ -163,6 +165,7 @@ async function bootstrapAttendanceLifecycle() {
 function bindUIEvents() {
   const loginForm = document.getElementById('login-form');
   const btnRetryGeo = document.getElementById('btn-retry-geo');
+  const btnDownloadReceipt = document.getElementById('btn-download-receipt');
   const btnFinishExit = document.getElementById('btn-finish-exit');
   const btnFullscreen = document.getElementById('btn-fullscreen-lock');
 
@@ -172,8 +175,11 @@ function bindUIEvents() {
   if (btnRetryGeo) {
     btnRetryGeo.addEventListener('click', runLocationCheckFlow);
   }
+  if (btnDownloadReceipt) {
+    btnDownloadReceipt.addEventListener('click', handleDownloadReceiptPng);
+  }
   if (btnFinishExit) {
-    btnFinishExit.addEventListener('click', handleExitAndResetSession);
+    btnFinishExit.addEventListener('click', handleExitAndCloseApp);
   }
   if (btnFullscreen) {
     btnFullscreen.addEventListener('click', () => {
@@ -311,15 +317,24 @@ async function handleLoginSubmit(event) {
       throw schedErr;
     }
 
+    // 4. Ambil identitas nama & NIP pegawai untuk ditampilkan pada bukti presensi
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('nama, nip')
+      .eq('id', authData.user.id)
+      .maybeSingle();
+
     appState.currentUser = authData.user;
+    appState.userProfile = profileData || { nama: 'Pegawai', nip: rawIdentifier };
     appState.activeScheduleType = schedStatus.jenis_presensi;
     inputPassword.value = '';
 
-    // 4. Lanjut otomatis ke tahap pengecekan lokasi GPS
+    // 5. Lanjut otomatis ke tahap pengecekan lokasi GPS
     await runLocationCheckFlow();
   } catch (err) {
     await supabase.auth.signOut().catch(() => {});
     appState.currentUser = null;
+    appState.userProfile = null;
     appState.activeScheduleType = null;
     alertBox.textContent = err.message || 'Terjadi kesalahan saat proses masuk.';
     alertBox.classList.remove('hidden');
@@ -414,8 +429,38 @@ async function runCameraLivenessFlow() {
 }
 
 // =====================================================================
-// 9. ALUR TAHAP 4: UNGGAH FOTO & VALIDASI RPC DENGAN AUTO-RETRY + JITTER
+// 9. ALUR TAHAP 4: UNGGAH FOTO, VALIDASI RPC, & AMBIL RIWAYAT HARI INI
 // =====================================================================
+async function fetchTodayAttendanceSummary(userId) {
+  const todayLocal = new Date().toLocaleDateString('en-CA');
+  const { data: logs } = await supabase
+    .from('presensi_log')
+    .select('jenis_presensi, created_at')
+    .eq('user_id', userId)
+    .eq('tanggal_lokal', todayLocal)
+    .order('created_at', { ascending: true });
+
+  const summary = {
+    datangTime: null,
+    pulangTime: null
+  };
+
+  (logs || []).forEach((item) => {
+    const timeFormatted = new Date(item.created_at).toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    if (item.jenis_presensi === 'pulang') {
+      summary.pulangTime = `${timeFormatted} WIB`;
+    } else {
+      summary.datangTime = `${timeFormatted} WIB`;
+    }
+  });
+
+  return summary;
+}
+
 async function handleCapturedAndSubmitAttendance(compressedPhotoBlob) {
   const instructionEl = document.getElementById('liveness-instruction');
   const setStatus = (msg) => {
@@ -507,7 +552,12 @@ async function handleCapturedAndSubmitAttendance(compressedPhotoBlob) {
       }
     );
 
-    renderSuccessReceipt(compressedPhotoBlob, appState.verifiedCoords, rpcResult);
+    // Tahap 4C: Ambil ringkasan riwayat presensi hari ini (Datang & Pulang)
+    const todaySummary = await fetchTodayAttendanceSummary(appState.currentUser.id).catch(
+      () => ({ datangTime: null, pulangTime: null })
+    );
+
+    renderSuccessReceipt(compressedPhotoBlob, appState.verifiedCoords, rpcResult, todaySummary);
   } catch (submitErr) {
     if (uploadedFilePath) {
       await supabase.storage
@@ -527,7 +577,7 @@ async function handleCapturedAndSubmitAttendance(compressedPhotoBlob) {
   }
 }
 
-function renderSuccessReceipt(photoBlob, coords, rpcResult) {
+function renderSuccessReceipt(photoBlob, coords, rpcResult, todaySummary) {
   if (appState.receiptPhotoUrl) {
     URL.revokeObjectURL(appState.receiptPhotoUrl);
   }
@@ -538,17 +588,50 @@ function renderSuccessReceipt(photoBlob, coords, rpcResult) {
 
   const badgeEl = document.getElementById('receipt-type-badge');
   const titleEl = document.getElementById('receipt-title');
+  const empInfoEl = document.getElementById('receipt-employee-info');
 
   if (badgeEl) {
     badgeEl.textContent = isPulang ? 'PRESENSI PULANG' : 'PRESENSI DATANG';
     badgeEl.className = isPulang
-      ? 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 mb-2'
-      : 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30 mb-2';
+      ? 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 mb-1.5'
+      : 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30 mb-1.5';
   }
 
-  if (titleEl) {
-    titleEl.textContent =
-      rpcResult?.message || (isPulang ? 'Berhasil Presensi Pulang' : 'Berhasil Presensi Datang');
+  const titleText =
+    rpcResult?.message || (isPulang ? 'Berhasil Presensi Pulang' : 'Berhasil Presensi Datang');
+  if (titleEl) titleEl.textContent = titleText;
+
+  const empName = appState.userProfile?.nama || 'Pegawai';
+  const empNip = appState.userProfile?.nip || '-';
+  if (empInfoEl) {
+    empInfoEl.textContent = `${empName} • NIP: ${empNip}`;
+  }
+
+  // Isi Ringkasan Riwayat Hari Ini
+  const datangEl = document.getElementById('summary-datang-time');
+  const pulangEl = document.getElementById('summary-pulang-time');
+
+  const fallbackNowTime = `${new Date().toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })} WIB`;
+
+  const resolvedDatang = todaySummary?.datangTime || (!isPulang ? fallbackNowTime : null);
+  const resolvedPulang = todaySummary?.pulangTime || (isPulang ? fallbackNowTime : null);
+
+  if (datangEl) {
+    datangEl.textContent = resolvedDatang || 'Belum Presensi';
+    datangEl.className = resolvedDatang
+      ? 'block font-mono font-semibold text-xs text-emerald-400 mt-0.5'
+      : 'block font-mono font-semibold text-xs text-slate-500 mt-0.5';
+  }
+
+  if (pulangEl) {
+    pulangEl.textContent = resolvedPulang || 'Belum Presensi';
+    pulangEl.className = resolvedPulang
+      ? 'block font-mono font-semibold text-xs text-emerald-400 mt-0.5'
+      : 'block font-mono font-semibold text-xs text-slate-500 mt-0.5';
   }
 
   const sizeKB = (photoBlob.size / 1024).toFixed(1);
@@ -564,13 +647,174 @@ function renderSuccessReceipt(photoBlob, coords, rpcResult) {
     'receipt-coords'
   ).innerHTML = `<strong>Koordinat:</strong> ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
 
+  // Simpan payload untuk generator PNG
+  appState.lastReceiptPayload = {
+    photoUrl: appState.receiptPhotoUrl,
+    jenis,
+    isPulang,
+    titleText,
+    empName,
+    empNip,
+    formattedTime,
+    coordsText: `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`,
+    datangText: resolvedDatang || 'Belum Presensi',
+    pulangText: resolvedPulang || 'Belum Presensi',
+    deviceShort: appState.deviceId ? appState.deviceId.slice(0, 12) : '-'
+  };
+
   switchView('view-success');
 }
 
 // =====================================================================
-// 10. KELUAR & KUNCI KEMBALI SESI
+// 10. GENERATOR UNDUH BUKTI PRESENSI DIGITAL (PNG)
 // =====================================================================
-async function handleExitAndResetSession() {
+async function handleDownloadReceiptPng() {
+  const payload = appState.lastReceiptPayload;
+  if (!payload) return;
+
+  const btn = document.getElementById('btn-download-receipt');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Membuat Kartu Bukti PNG...';
+
+  try {
+    const img = new Image();
+    img.src = payload.photoUrl;
+    await img.decode();
+
+    const width = 760;
+    const height = 1140;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    // Latar belakang utama
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, width, height);
+
+    // Kartu utama
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(36, 36, width - 72, height - 72, 36);
+    ctx.fill();
+    ctx.stroke();
+
+    // Header Badge
+    ctx.fillStyle = payload.isPulang ? 'rgba(245, 158, 11, 0.16)' : 'rgba(14, 165, 233, 0.16)';
+    ctx.beginPath();
+    ctx.roundRect(width / 2 - 140, 74, 280, 40, 20);
+    ctx.fill();
+
+    ctx.fillStyle = payload.isPulang ? '#fcd34d' : '#7dd3fc';
+    ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(payload.isPulang ? 'PRESENSI PULANG' : 'PRESENSI DATANG', width / 2, 100);
+
+    // Judul & Identitas
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
+    ctx.fillText(payload.titleText, width / 2, 156);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '600 22px system-ui, -apple-system, sans-serif';
+    ctx.fillText(payload.empName, width / 2, 196);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '18px monospace';
+    ctx.fillText(`NIP: ${payload.empNip}`, width / 2, 226);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '17px system-ui, -apple-system, sans-serif';
+    ctx.fillText(payload.formattedTime, width / 2, 256);
+
+    // Bingkai Foto Swafoto (3:4)
+    const photoW = 330;
+    const photoH = 440;
+    const photoX = (width - photoW) / 2;
+    const photoY = 286;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(photoX, photoY, photoW, photoH, 24);
+    ctx.clip();
+    ctx.drawImage(img, photoX, photoY, photoW, photoH);
+    ctx.restore();
+
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(photoX, photoY, photoW, photoH, 24);
+    ctx.stroke();
+
+    // Kotak Ringkasan Riwayat Hari Ini
+    const boxX = 76;
+    const boxY = 758;
+    const boxW = width - 152;
+    ctx.fillStyle = '#020617';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, 148, 22);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+    ctx.fillText('RINGKASAN KEHADIRAN HARI INI', boxX + 26, boxY + 34);
+
+    // Kolom Datang
+    ctx.fillStyle = '#64748b';
+    ctx.font = '16px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Presensi Datang', boxX + 26, boxY + 74);
+    ctx.fillStyle = payload.datangText !== 'Belum Presensi' ? '#34d399' : '#64748b';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText(payload.datangText, boxX + 26, boxY + 108);
+
+    // Kolom Pulang
+    const col2X = width / 2 + 20;
+    ctx.fillStyle = '#64748b';
+    ctx.font = '16px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Presensi Pulang', col2X, boxY + 74);
+    ctx.fillStyle = payload.pulangText !== 'Belum Presensi' ? '#34d399' : '#64748b';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText(payload.pulangText, col2X, boxY + 108);
+
+    // Detail Koordinat & Status Server
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '17px monospace';
+    ctx.fillText(`Koordinat : ${payload.coordsText}`, boxX + 10, 954);
+    ctx.fillText(`ID Gawai  : ${payload.deviceShort}...`, boxX + 10, 986);
+
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 17px system-ui, -apple-system, sans-serif';
+    ctx.fillText('✔ Terverifikasi Server & GPS Akurasi Tinggi', boxX + 10, 1024);
+
+    const pngBlob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+    const downloadUrl = URL.createObjectURL(pngBlob);
+    const link = document.createElement('a');
+    const dateStamp = new Date().toLocaleDateString('en-CA');
+    link.href = downloadUrl;
+    link.download = `Bukti_Presensi_${payload.jenis.toUpperCase()}_${payload.empNip}_${dateStamp}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+  } catch (err) {
+    alert('Gagal membuat gambar bukti presensi: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+// =====================================================================
+// 11. SELESAI & KELUAR (AKHIRI SESI & TUTUP PWA JIKA DIIZINKAN OS)
+// =====================================================================
+async function handleExitAndCloseApp() {
   stopActiveCamera();
   clearPermissionWatcher();
 
@@ -580,8 +824,10 @@ async function handleExitAndResetSession() {
   }
 
   appState.currentUser = null;
+  appState.userProfile = null;
   appState.activeScheduleType = null;
   appState.verifiedCoords = null;
+  appState.lastReceiptPayload = null;
 
   await supabase.auth.signOut().catch(() => {});
 
@@ -589,4 +835,12 @@ async function handleExitAndResetSession() {
   if (loginForm) loginForm.reset();
 
   switchView('view-login');
+
+  // Coba tutup jendela PWA secara langsung; jika dibatasi kebijakan OS/browser,
+  // layar sudah aman terkunci kembali di halaman login awal.
+  try {
+    window.close();
+  } catch {
+    // Diabaikan jika OS tidak mengizinkan penutupan jendela via skrip
+  }
 }
