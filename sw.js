@@ -1,4 +1,4 @@
-const CACHE_NAME = 'presensi-kiosk-v9';
+const CACHE_NAME = 'presensi-kiosk-v10';
 const STATIC_ASSETS = [
   './',
   './index.html',
