@@ -1,10 +1,10 @@
-const CACHE_NAME = 'presensi-kiosk-v11;
+const CACHE_NAME = 'presensi-kiosk-v12';
 
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './js/app.js?v=10',
+  './js/app.js?v=11',
   './js/supabase-client.js',
   './js/pwa-gate.js',
   './js/device-id.js',
@@ -14,7 +14,6 @@ const CORE_ASSETS = [
   './assets/icon-512.png'
 ];
 
-// Instal & langsung aktifkan Service Worker baru tanpa menunggu tab ditutup
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -22,7 +21,6 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Hapus seluruh cache versi lama (v1..v9) dan ambil alih kendali halaman segera
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -35,19 +33,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Strategi Network-First untuk aplikasi lokal agar pembaruan kode selalu langsung aktif
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
 
-  // Jangan pernah cache permintaan API Supabase
   if (url.hostname.includes('supabase.co')) {
     return;
   }
 
-  // Untuk file aplikasi sendiri (same-origin): utamakan jaringan terbaru, fallback ke cache
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(req)
