@@ -4,8 +4,8 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // KONFIGURASI PROYEK SUPABASE (SESUAIKAN DENGAN DASHBOARD ANDA)
 // =====================================================================
 export const APP_CONFIG = {
-  SUPABASE_URL: 'https://GANTI-PROJECT-ID.supabase.co',
-  SUPABASE_ANON_KEY: 'GANTI-DENGAN-SUPABASE-ANON-KEY',
+  SUPABASE_URL: 'https://rsqwobnnijsorcubdvwf.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzcXdvYm5uaWpzb3JjdWJkdndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1MTA2OTIsImV4cCI6MjExMDA4NjY5Mn0.n-z_xd6PUynkzExsQnE7NQ07uWEy3ZDJd4YesNll7d4',
   DEFAULT_EMAIL_DOMAIN: 'instansi.id', // Domain otomatis jika pegawai login dengan NIP
   STORAGE_BUCKET: 'bukti-presensi',
   TARGET_PHOTO_MAX_KB: 210,
