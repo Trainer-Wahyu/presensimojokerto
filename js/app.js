@@ -1,7 +1,10 @@
 import { APP_CONFIG, supabase } from './supabase-client.js';
 import { initPwaGate } from './pwa-gate.js';
 import { getBoundDeviceId, validateOrBindDevice } from './device-id.js';
-import { acquireVerifiedCoordinates } from './geo-guard.js';
+import {
+  acquireVerifiedCoordinates,
+  watchGeolocationPermission
+} from './geo-guard.js';
 import { startLivenessCapture } from './camera-liveness.js';
 
 // =====================================================================
@@ -23,7 +26,8 @@ const appState = {
   currentUser: null,
   verifiedCoords: null,
   cameraController: null,
-  receiptPhotoUrl: null
+  receiptPhotoUrl: null,
+  permissionWatcher: null
 };
 
 const VIEW_IDS = ['view-login', 'view-location', 'view-camera', 'view-success'];
@@ -41,6 +45,13 @@ function stopActiveCamera() {
   if (appState.cameraController && typeof appState.cameraController.stop === 'function') {
     appState.cameraController.stop();
     appState.cameraController = null;
+  }
+}
+
+function clearPermissionWatcher() {
+  if (appState.permissionWatcher) {
+    appState.permissionWatcher.onchange = null;
+    appState.permissionWatcher = null;
   }
 }
 
@@ -167,17 +178,21 @@ async function handleLoginSubmit(event) {
 }
 
 // =====================================================================
-// 6. ALUR TAHAP 2: VERIFIKASI LOKASI & FILTER MOCK LOCATION
+// 6. ALUR TAHAP 2: VERIFIKASI LOKASI, IZIN GPS & FILTER MOCK LOCATION
 // =====================================================================
 async function runLocationCheckFlow() {
   stopActiveCamera();
+  clearPermissionWatcher();
   switchView('view-location');
 
   const statusText = document.getElementById('geo-status-text');
   const errBox = document.getElementById('geo-error-box');
   const errMsg = document.getElementById('geo-error-msg');
+  const btnRetry = document.getElementById('btn-retry-geo');
 
   errBox.classList.add('hidden');
+  btnRetry.disabled = true;
+  btnRetry.textContent = 'Memeriksa Lokasi...';
   statusText.textContent =
     'Memeriksa titik koordinat GPS dan integritas sensor perangkat. Pastikan GPS Akurasi Tinggi aktif...';
 
@@ -199,6 +214,20 @@ async function runLocationCheckFlow() {
   } catch (geoErr) {
     errMsg.textContent = geoErr.message || 'Gagal memverifikasi lokasi perangkat.';
     errBox.classList.remove('hidden');
+    btnRetry.disabled = false;
+
+    if (geoErr.code === 'PERMISSION_PROMPT') {
+      // Status izin belum dipilih: klik tombol akan memunculkan pop-up izin GPS bawaan HP
+      btnRetry.textContent = 'Izinkan Akses Lokasi Sekarang';
+    } else if (geoErr.code === 'PERMISSION_DENIED') {
+      // Status diblokir permanen: pantau otomatis jika pengguna mengaktifkannya di Pengaturan HP
+      btnRetry.textContent = 'Saya Sudah Mengaktifkan Izin, Periksa Lagi';
+      appState.permissionWatcher = await watchGeolocationPermission(() => {
+        runLocationCheckFlow();
+      });
+    } else {
+      btnRetry.textContent = 'Coba Periksa Lokasi Lagi';
+    }
   }
 }
 
@@ -225,7 +254,10 @@ async function runCameraLivenessFlow() {
     switchView('view-location');
     const errBox = document.getElementById('geo-error-box');
     const errMsg = document.getElementById('geo-error-msg');
+    const btnRetry = document.getElementById('btn-retry-geo');
     errMsg.textContent = camErr.message || 'Gagal mengakses kamera depan perangkat.';
+    btnRetry.disabled = false;
+    btnRetry.textContent = 'Coba Lagi';
     errBox.classList.remove('hidden');
   }
 }
@@ -298,7 +330,10 @@ async function handleCapturedAndSubmitAttendance(compressedPhotoBlob) {
     switchView('view-location');
     const errBox = document.getElementById('geo-error-box');
     const errMsg = document.getElementById('geo-error-msg');
+    const btnRetry = document.getElementById('btn-retry-geo');
     errMsg.textContent = submitErr.message;
+    btnRetry.disabled = false;
+    btnRetry.textContent = 'Coba Periksa Lokasi Lagi';
     errBox.classList.remove('hidden');
   }
 }
@@ -330,6 +365,7 @@ function renderSuccessReceipt(photoBlob, coords) {
 // =====================================================================
 async function handleExitAndResetSession() {
   stopActiveCamera();
+  clearPermissionWatcher();
 
   if (appState.receiptPhotoUrl) {
     URL.revokeObjectURL(appState.receiptPhotoUrl);
