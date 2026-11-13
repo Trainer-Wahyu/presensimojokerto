@@ -82,7 +82,7 @@
   <!-- =====================================================================
        GERBANG 2: APLIKASI UTAMA (Hanya dimuat saat mode PWA Standalone/Fullscreen)
        ===================================================================== -->
-  <main id="app-main" class="hidden flex-1 flex flex-col justify-between p-5 max-w-md w-full mx-auto">
+  <main id="app-main" class="hidden flex-1 flex flex-col justify-between p-5 pb-10 max-w-md w-full mx-auto">
 
     <!-- Header Status -->
     <header class="flex items-center justify-between py-2 border-b border-slate-800/80">
@@ -167,33 +167,33 @@
     </section>
 
     <!-- VIEW D: BUKTI PRESENSI TERKIRIM + RIWAYAT HARI INI + UNDUH PNG -->
-    <section id="view-success" class="hidden my-auto py-4 text-center">
+    <section id="view-success" class="hidden my-auto py-3 text-center">
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
-        <div class="w-12 h-12 mx-auto mb-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-xl">
+        <div class="w-11 h-11 mx-auto mb-2 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-lg">
           ✅
         </div>
-        <span id="receipt-type-badge" class="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30 mb-1.5">
+        <span id="receipt-type-badge" class="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30 mb-1">
           PRESENSI DATANG
         </span>
         <h3 id="receipt-title" class="text-lg font-bold text-white">Berhasil Presensi Datang</h3>
-        <p id="receipt-employee-info" class="text-xs font-medium text-slate-300 mt-1"></p>
+        <p id="receipt-employee-info" class="text-xs font-medium text-slate-300 mt-0.5"></p>
         <p id="receipt-time" class="text-[11px] text-slate-400 mt-0.5"></p>
 
-        <div class="my-3.5 rounded-2xl overflow-hidden border border-slate-800 aspect-[3/4] max-h-52 mx-auto bg-black">
+        <div class="my-3 rounded-2xl overflow-hidden border border-slate-800 aspect-[3/4] max-h-44 mx-auto bg-black">
           <img id="receipt-photo" alt="Bukti Selfie" class="w-full h-full object-cover">
         </div>
 
         <!-- Ringkasan Riwayat Presensi Hari Ini -->
-        <div class="bg-slate-950 rounded-2xl p-3 text-left text-xs border border-slate-800/90 mb-3">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+        <div class="bg-slate-950 rounded-2xl p-2.5 text-left text-xs border border-slate-800/90 mb-2.5">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
             Ringkasan Riwayat Hari Ini
           </p>
           <div class="grid grid-cols-2 gap-2">
-            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800/80">
+            <div class="p-2 rounded-xl bg-slate-900/90 border border-slate-800/80">
               <span class="block text-[10px] text-slate-400">Presensi Datang</span>
               <span id="summary-datang-time" class="block font-mono font-semibold text-xs text-slate-300 mt-0.5">Belum</span>
             </div>
-            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800/80">
+            <div class="p-2 rounded-xl bg-slate-900/90 border border-slate-800/80">
               <span class="block text-[10px] text-slate-400">Presensi Pulang</span>
               <span id="summary-pulang-time" class="block font-mono font-semibold text-xs text-slate-300 mt-0.5">Belum</span>
             </div>
@@ -201,7 +201,7 @@
         </div>
 
         <!-- Detail Teknis -->
-        <div class="bg-slate-950/70 rounded-xl p-2.5 text-left text-[11px] space-y-1 text-slate-400 border border-slate-800/80 mb-4">
+        <div class="bg-slate-950/70 rounded-xl p-2.5 text-left text-[11px] space-y-0.5 text-slate-400 border border-slate-800/80 mb-3.5">
           <p><strong>Status:</strong> <span class="text-emerald-400">Terverifikasi Server</span></p>
           <p id="receipt-size"><strong>Ukuran Berkas:</strong> -- KB</p>
           <p id="receipt-coords"><strong>Koordinat:</strong> --</p>
@@ -215,18 +215,18 @@
           </button>
 
           <button id="btn-finish-exit" type="button"
-            class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.99] text-slate-200 text-xs font-semibold border border-slate-700 transition">
+            class="w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.99] text-slate-100 text-xs font-semibold border border-slate-600 transition cursor-pointer">
             Selesai &amp; Kembali ke Halaman Login
           </button>
         </div>
       </div>
     </section>
 
-    <footer class="text-center py-2 text-[11px] text-slate-600">
+    <footer class="text-center pt-3 pb-2 text-[11px] text-slate-600">
       Sistem Keamanan Presensi Terenkripsi
     </footer>
   </main>
 
-  <script type="module" src="./js/app.js?v=10"></script>
+  <script type="module" src="./js/app.js?v=11"></script>
 </body>
 </html>
