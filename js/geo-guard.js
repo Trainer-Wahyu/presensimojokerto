@@ -1,47 +1,97 @@
 import { APP_CONFIG } from './supabase-client.js';
 
 /**
+ * Memeriksa status izin geolokasi saat ini ('granted' | 'prompt' | 'denied' | 'unknown')
+ */
+export async function getGeolocationPermissionState() {
+  if (!('permissions' in navigator) || !navigator.permissions.query) {
+    return 'unknown';
+  }
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    return status.state;
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * Memantau perubahan izin lokasi secara real-time.
+ * Jika pegawai membuka Pengaturan HP, mengaktifkan izin Lokasi, lalu kembali ke PWA,
+ * callback onGranted otomatis dijalankan.
+ */
+export async function watchGeolocationPermission(onGranted) {
+  if (!('permissions' in navigator) || !navigator.permissions.query) {
+    return null;
+  }
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    status.onchange = () => {
+      if (status.state === 'granted' && typeof onGranted === 'function') {
+        status.onchange = null;
+        onGranted();
+      }
+    };
+    return status;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Mengambil satu sampel koordinat GPS mentah tanpa cache
  */
 function requestRawPosition(timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
-      return reject(new Error('Perangkat tidak mendukung sensor geolokasi (GPS).'));
+      const err = new Error('Perangkat tidak mendukung sensor geolokasi (GPS).');
+      err.code = 'UNSUPPORTED';
+      return reject(err);
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => resolve(position),
-      (error) => {
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            reject(
-              new Error(
-                'Izin lokasi ditolak. Buka Pengaturan Aplikasi/Browser dan izinkan akses Lokasi.'
-              )
+      async (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          const permState = await getGeolocationPermissionState();
+
+          if (permState === 'prompt') {
+            const err = new Error(
+              'Permintaan izin lokasi belum dipilih. Ketuk tombol di bawah untuk memunculkan dialog izin GPS.'
             );
-            break;
-          case error.POSITION_UNAVAILABLE:
-            reject(
-              new Error(
-                'Sinyal GPS tidak tersedia. Aktifkan GPS perangkat dengan mode Akurasi Tinggi.'
-              )
-            );
-            break;
-          case error.TIMEOUT:
-            reject(
-              new Error(
-                'Waktu pencarian titik GPS habis. Pastikan Anda berada di area dengan sinyal terbuka.'
-              )
-            );
-            break;
-          default:
-            reject(new Error('Gagal membaca koordinat lokasi perangkat.'));
+            err.code = 'PERMISSION_PROMPT';
+            return reject(err);
+          }
+
+          const err = new Error(
+            'Akses lokasi diblokir oleh pengaturan HP. Tekan lama ikon aplikasi Presensi di layar utama → Info Aplikasi → Izin → Lokasi → pilih "Izinkan saat aplikasi digunakan", lalu kembali ke layar ini.'
+          );
+          err.code = 'PERMISSION_DENIED';
+          return reject(err);
         }
+
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          const err = new Error(
+            'Sinyal GPS tidak tersedia. Aktifkan GPS perangkat dengan mode Akurasi Tinggi.'
+          );
+          err.code = 'POSITION_UNAVAILABLE';
+          return reject(err);
+        }
+
+        if (error.code === error.TIMEOUT) {
+          const err = new Error(
+            'Waktu pencarian titik GPS habis. Pastikan Anda berada di area terbuka dan coba lagi.'
+          );
+          err.code = 'TIMEOUT';
+          return reject(err);
+        }
+
+        reject(new Error('Gagal membaca koordinat lokasi perangkat.'));
       },
       {
         enableHighAccuracy: true,
         timeout: timeoutMs,
-        maximumAge: 0 // Wajib 0: larang browser memakai titik lokasi lama dari cache
+        maximumAge: 0
       }
     );
   });
@@ -52,10 +102,8 @@ function requestRawPosition(timeoutMs = 15000) {
  */
 function analyzeSensorIntegrity(position, maxAccuracyMeters) {
   const { latitude, longitude, accuracy, altitude, altitudeAccuracy, speed } = position.coords;
-  const now = Date.now();
-  const driftMs = Math.abs(now - position.timestamp);
+  const driftMs = Math.abs(Date.now() - position.timestamp);
 
-  // 1. Validasi rentang koordinat bumi yang sah
   if (
     typeof latitude !== 'number' ||
     typeof longitude !== 'number' ||
@@ -67,26 +115,22 @@ function analyzeSensorIntegrity(position, maxAccuracyMeters) {
     throw new Error('Data koordinat GPS tidak valid.');
   }
 
-  // 2. Deteksi akurasi palsu (Mock GPS sering menyuntikkan accuracy = 0 atau nilai terlalu besar)
   if (accuracy <= 0 || accuracy > maxAccuracyMeters) {
     throw new Error(
       `Akurasi lokasi tidak memenuhi syarat (${Math.round(accuracy)}m). Nonaktifkan Mock Location / Opsi Pengembang lalu coba kembali.`
     );
   }
 
-  // 3. Deteksi selisih waktu injeksi paket GPS dengan jam perangkat (> 20 detik)
   if (driftMs > 20000) {
     throw new Error(
       'Paket sinyal GPS kedaluwarsa atau tidak sinkron. Segarkan GPS perangkat Anda.'
     );
   }
 
-  // 4. Deteksi anomali kecepatan perpindahan mustahil (> 150 m/s atau 540 km/jam)
   if (typeof speed === 'number' && speed > 150) {
     throw new Error('Terdeteksi anomali perpindahan lokasi tidak wajar.');
   }
 
-  // 5. Deteksi tanda khas emulator/mock provider (altitude tepat 0 dengan altitudeAccuracy null)
   if (altitude === 0 && altitudeAccuracy === null && accuracy === 1) {
     throw new Error('Indikasi lokasi simulasi terdeteksi pada sensor perangkat.');
   }
