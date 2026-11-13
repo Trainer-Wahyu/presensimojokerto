@@ -56,7 +56,6 @@ function writeToIndexedDB(value) {
 
 /**
  * Membuat hash SHA-256 dari karakteristik perangkat keras layar & platform
- * Mencegah kloning UUID mentah ke tipe ponsel yang berbeda
  */
 async function generateHardwareSignature() {
   const rawTraits = [
@@ -91,7 +90,6 @@ export async function getBoundDeviceId() {
   const localVal = localStorage.getItem(STORAGE_KEY);
   const idbVal = await readFromIndexedDB();
 
-  // Pulihkan dari salah satu penyimpanan jika penyimpanan lainnya sempat terhapus
   let baseUuid = localVal || idbVal;
   if (!baseUuid) {
     baseUuid = createUUIDv4();
@@ -105,44 +103,26 @@ export async function getBoundDeviceId() {
 }
 
 /**
- * Memverifikasi kecocokan gawai pada tabel profiles Supabase (1 Akun = 1 Gawai).
- * Jika akun belum pernah terikat, gawai saat ini otomatis didaftarkan secara permanen.
+ * Memverifikasi penguncian dua arah (1 Akun = 1 Gawai & 1 Gawai = 1 Akun)
+ * melalui fungsi RPC PostgreSQL SECURITY DEFINER.
  */
 export async function validateOrBindDevice(supabase, userId, currentDeviceId) {
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('registered_device_id, is_active')
-    .eq('id', userId)
-    .single();
+  const { data, error } = await supabase.rpc('bind_and_verify_device', {
+    p_device_id: currentDeviceId
+  });
 
-  if (error || !profile) {
-    throw new Error('Data profil pegawai tidak ditemukan di sistem.');
+  if (error) {
+    throw new Error(`Gagal memverifikasi penguncian gawai: ${error.message}`);
   }
 
-  if (!profile.is_active) {
-    throw new Error('Status akun pegawai nonaktif. Hubungi administrator.');
-  }
-
-  // Kondisi 1: Login pertama kali -> ikat gawai ini ke database
-  if (!profile.registered_device_id) {
-    const { error: updateErr } = await supabase
-      .from('profiles')
-      .update({ registered_device_id: currentDeviceId })
-      .eq('id', userId);
-
-    if (updateErr) {
-      throw new Error('Gagal mengunci identitas gawai ke server.');
-    }
-    return { bound: true, isFirstTime: true };
-  }
-
-  // Kondisi 2: Gawai tidak cocok dengan yang terdaftar
-  if (profile.registered_device_id !== currentDeviceId) {
+  if (!data || data.success !== true) {
     throw new Error(
-      'Akses Ditolak: Akun Anda sudah terkunci pada gawai lain. Gunakan gawai terdaftar atau minta admin mereset perangkat.'
+      data?.message || 'Akses Ditolak: Gawai atau akun tidak memenuhi syarat penguncian perangkat.'
     );
   }
 
-  // Kondisi 3: Gawai cocok
-  return { bound: true, isFirstTime: false };
+  return {
+    bound: true,
+    isFirstTime: Boolean(data.is_first_time)
+  };
 }
