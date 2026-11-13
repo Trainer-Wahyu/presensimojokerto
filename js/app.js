@@ -8,13 +8,14 @@ import {
 import { startLivenessCapture } from './camera-liveness.js';
 
 // =====================================================================
-// 1. REGISTRASI SERVICE WORKER (SYARAT INSTALASI PWA)
+// 1. REGISTRASI & PEMBARUAN OTOMATIS SERVICE WORKER
 // =====================================================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((err) => {
-      console.warn('Registrasi Service Worker gagal:', err);
-    });
+    navigator.serviceWorker
+      .register('./sw.js?v=10')
+      .then((reg) => reg.update().catch(() => {}))
+      .catch((err) => console.warn('Registrasi Service Worker gagal:', err));
   });
 }
 
@@ -162,10 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // =====================================================================
 async function bootstrapAttendanceLifecycle() {
   purgeLocalAuthTokens();
-  Promise.race([
-    supabase.auth.signOut({ scope: 'local' }),
-    sleep(1500)
-  ]).catch(() => {});
+  supabase.auth.signOut({ scope: 'local' }).catch(() => {});
 
   appState.deviceId = await getBoundDeviceId();
 
@@ -349,10 +347,7 @@ async function handleLoginSubmit(event) {
     await runLocationCheckFlow();
   } catch (err) {
     purgeLocalAuthTokens();
-    Promise.race([
-      supabase.auth.signOut({ scope: 'local' }),
-      sleep(1500)
-    ]).catch(() => {});
+    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
 
     appState.currentUser = null;
     appState.userProfile = null;
@@ -628,7 +623,6 @@ function renderSuccessReceipt(photoBlob, coords, rpcResult, todaySummary) {
     empInfoEl.textContent = `${empName} • NIP: ${empNip}`;
   }
 
-  // Isi Ringkasan Riwayat Hari Ini
   const datangEl = document.getElementById('summary-datang-time');
   const pulangEl = document.getElementById('summary-pulang-time');
 
@@ -668,7 +662,6 @@ function renderSuccessReceipt(photoBlob, coords, rpcResult, todaySummary) {
     'receipt-coords'
   ).innerHTML = `<strong>Koordinat:</strong> ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
 
-  // Simpan payload untuk generator PNG
   appState.lastReceiptPayload = {
     photoUrl: appState.receiptPhotoUrl,
     jenis,
@@ -824,30 +817,14 @@ async function handleDownloadReceiptPng() {
 }
 
 // =====================================================================
-// 11. SELESAI & KEMBALI KE HALAMAN LOGIN (INSTAN TANPA MENUNGGU JARINGAN)
+// 11. SELESAI & KEMBALI KE HALAMAN AUTENTIKASI PEGAWAI (INSTAN 0ms)
 // =====================================================================
 function handleReturnToLogin() {
-  stopActiveCamera();
-  clearPermissionWatcher();
+  // 1. Pindah tampilan seketika ke form Autentikasi Pegawai tanpa menunggu jaringan
+  switchView('view-login');
+  window.scrollTo({ top: 0, behavior: 'instant' });
 
-  if (appState.receiptPhotoUrl) {
-    URL.revokeObjectURL(appState.receiptPhotoUrl);
-    appState.receiptPhotoUrl = null;
-  }
-
-  appState.currentUser = null;
-  appState.userProfile = null;
-  appState.activeScheduleType = null;
-  appState.verifiedCoords = null;
-  appState.lastReceiptPayload = null;
-
-  // Bersihkan sesi lokal segera & panggil signOut lokal di latar belakang
-  purgeLocalAuthTokens();
-  Promise.race([
-    supabase.auth.signOut({ scope: 'local' }),
-    sleep(1500)
-  ]).catch(() => {});
-
+  // 2. Reset formulir & pesan galat
   const loginForm = document.getElementById('login-form');
   if (loginForm) loginForm.reset();
 
@@ -863,12 +840,21 @@ function handleReturnToLogin() {
     btnSubmit.textContent = 'Masuk & Verifikasi Lokasi';
   }
 
-  const btnFinish = document.getElementById('btn-finish-exit');
-  if (btnFinish) {
-    btnFinish.disabled = false;
-    btnFinish.textContent = 'Selesai & Kembali ke Halaman Login';
+  // 3. Hentikan kamera, bersihkan memori, & hapus sesi lokal di latar belakang
+  stopActiveCamera();
+  clearPermissionWatcher();
+
+  if (appState.receiptPhotoUrl) {
+    URL.revokeObjectURL(appState.receiptPhotoUrl);
+    appState.receiptPhotoUrl = null;
   }
 
-  switchView('view-login');
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  appState.currentUser = null;
+  appState.userProfile = null;
+  appState.activeScheduleType = null;
+  appState.verifiedCoords = null;
+  appState.lastReceiptPayload = null;
+
+  purgeLocalAuthTokens();
+  supabase.auth.signOut({ scope: 'local' }).catch(() => {});
 }
