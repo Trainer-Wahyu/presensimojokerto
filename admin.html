@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Admin — Sistem Presensi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased">
+
+  <!-- LAYAR LOGIN ADMIN -->
+  <section id="admin-login-view" class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+      <h1 class="text-xl font-bold text-white mb-1">Panel Administrator</h1>
+      <p class="text-xs text-slate-400 mb-6">Masuk menggunakan akun dengan hak akses Admin.</p>
+
+      <form id="admin-login-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1.5">Email / NIP Admin</label>
+          <input type="text" id="admin-email" required placeholder="admin@instansi.id"
+            class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-sky-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1.5">Kata Sandi</label>
+          <input type="password" id="admin-password" required placeholder="••••••••"
+            class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-sky-500">
+        </div>
+        <div id="admin-login-error" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300"></div>
+        <button type="submit" id="btn-admin-login"
+          class="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm transition">
+          Masuk ke Dashboard Admin
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- DASHBOARD UTAMA ADMIN -->
+  <div id="admin-dashboard-view" class="hidden max-w-6xl mx-auto p-4 md:p-8">
+    <!-- Top Bar -->
+    <header class="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
+      <div>
+        <h1 class="text-2xl font-bold text-white">Dashboard Presensi Pegawai</h1>
+        <p id="admin-welcome" class="text-xs text-slate-400 mt-1">Memuat sesi admin...</p>
+      </div>
+      <button id="btn-admin-logout" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700">
+        Keluar
+      </button>
+    </header>
+
+    <!-- Navigasi Tab -->
+    <nav class="flex gap-2 my-6 border-b border-slate-800 pb-3 overflow-x-auto">
+      <button data-tab="tab-logs" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-sky-600 text-white">
+        Rekap Presensi & Foto
+      </button>
+      <button data-tab="tab-employees" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white">
+        Data Pegawai & Reset Gawai
+      </button>
+      <button data-tab="tab-locations" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white">
+        Titik & Radius Kantor
+      </button>
+    </nav>
+
+    <!-- =================================================================
+         TAB 1: REKAP PRESENSI & BUKTI FOTO (SIGNED URL)
+         ================================================================= -->
+    <section id="tab-logs" class="tab-panel space-y-4">
+      <div class="flex flex-wrap items-end justify-between gap-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+        <div class="flex flex-wrap items-center gap-3">
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-1">Tanggal Presensi</label>
+            <input type="date" id="filter-date" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-1">Cari Nama / NIP</label>
+            <input type="text" id="filter-search" placeholder="Ketik nama atau NIP..." class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+          </div>
+        </div>
+        <button id="btn-refresh-logs" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white">
+          Muat Ulang Data
+        </button>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="p-4">Waktu Server</th>
+                <th class="p-4">Pegawai</th>
+                <th class="p-4">Jarak dari Titik</th>
+                <th class="p-4">Koordinat GPS</th>
+                <th class="p-4">Bukti Selfie (Private)</th>
+              </tr>
+            </thead>
+            <tbody id="logs-table-body" class="divide-y divide-slate-800/80">
+              <tr><td colspan="5" class="p-6 text-center text-slate-500">Memuat data presensi...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================
+         TAB 2: TAMBAH PEGAWAI & RESET GAWAI
+         ================================================================= -->
+    <section id="tab-employees" class="tab-panel hidden space-y-6">
+      <!-- Form Tambah Pegawai -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h2 class="text-base font-bold text-white mb-1">Tambah Akun Pegawai Baru</h2>
+        <p class="text-xs text-slate-400 mb-4">Gawai pegawai akan otomatis terkunci pada perangkat pertama yang dipakai login.</p>
+
+        <form id="add-employee-form" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <input type="text" id="new-emp-nama" required placeholder="Nama Lengkap & Gelar"
+            class="px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+          <input type="text" id="new-emp-nip" required placeholder="NIP / Username"
+            class="px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+          <input type="password" id="new-emp-pass" required minlength="6" placeholder="Password Awal (min 6 karakter)"
+            class="px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+          <select id="new-emp-role" class="px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+            <option value="pegawai">Peran: Pegawai</option>
+            <option value="admin">Peran: Admin</option>
+          </select>
+          <button type="submit" id="btn-add-emp" class="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white">
+            + Daftarkan Pegawai
+          </button>
+        </form>
+        <p id="add-emp-feedback" class="hidden text-xs mt-3"></p>
+      </div>
+
+      <!-- Tabel Daftar Pegawai & Reset Device -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-white">Daftar Pegawai Terdaftar</h3>
+          <button id="btn-refresh-emp" class="text-xs text-sky-400 hover:underline">Segarkan Daftar</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="p-4">Nama Pegawai</th>
+                <th class="p-4">NIP</th>
+                <th class="p-4">Peran</th>
+                <th class="p-4">Status Penguncian Gawai</th>
+                <th class="p-4 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="employees-table-body" class="divide-y divide-slate-800/80"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================
+         TAB 3: KONFIGURASI LOKASI & RADIUS KANTOR
+         ================================================================= -->
+    <section id="tab-locations" class="tab-panel hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-xl">
+        <h2 class="text-base font-bold text-white mb-1">Pengaturan Titik Lokasi Kantor</h2>
+        <p class="text-xs text-slate-400 mb-5">Koordinat dan batas radius (meter) ini dievaluasi langsung oleh server PostgreSQL.</p>
+
+        <form id="location-config-form" class="space-y-4">
+          <input type="hidden" id="loc-id">
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Nama Lokasi / Instansi</label>
+            <input type="text" id="loc-nama" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Latitude</label>
+              <input type="number" step="any" id="loc-lat" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Longitude</label>
+              <input type="number" step="any" id="loc-lng" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Radius Maksimal Diizinkan (Meter)</label>
+            <input type="number" step="1" min="5" id="loc-radius" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white">
+          </div>
+          <div class="flex flex-wrap gap-3 pt-2">
+            <button type="button" id="btn-use-current-gps" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700">
+              Ambil Koordinat Posisi Saya Saat Ini
+            </button>
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white">
+              Simpan Perubahan Lokasi
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <!-- MODAL PRATINJAU FOTO FULL -->
+  <div id="photo-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 max-w-sm w-full text-center">
+      <img id="modal-photo-img" alt="Bukti Presensi" class="w-full rounded-2xl aspect-[3/4] object-cover mb-3">
+      <p id="modal-photo-caption" class="text-xs text-slate-300 mb-4"></p>
+      <button id="btn-close-modal" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white">
+        Tutup Pratinjau
+      </button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+    import { APP_CONFIG, supabase } from './js/supabase-client.js';
+
+    // Klien terpisah tanpa persistSession untuk mendaftarkan pegawai baru
+    // agar sesi login admin saat ini tidak tertimpa
+    const registrarClient = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+
+    const loginView = document.getElementById('admin-login-view');
+    const dashView = document.getElementById('admin-dashboard-view');
+
+    // Set tanggal filter default ke hari ini (format YYYY-MM-DD lokal)
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    document.getElementById('filter-date').value = todayStr;
+
+    // 1. Cek sesi admin saat halaman dibuka
+    async function initAdminSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('nama, role, is_active')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile && profile.role === 'admin' && profile.is_active) {
+        loginView.classList.add('hidden');
+        dashView.classList.remove('hidden');
+        document.getElementById('admin-welcome').textContent = `Masuk sebagai: ${profile.nama} (${session.user.email})`;
+        loadAttendanceLogs();
+        loadEmployees();
+        loadOfficeLocation();
+      } else {
+        await supabase.auth.signOut();
+      }
+    }
+
+    // 2. Handler Login Admin
+    document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('admin-login-error');
+      const btn = document.getElementById('btn-admin-login');
+      errEl.classList.add('hidden');
+      btn.disabled = true;
+
+      try {
+        const rawId = document.getElementById('admin-email').value.trim();
+        const password = document.getElementById('admin-password').value;
+        const email = rawId.includes('@') ? rawId : `${rawId}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN}`;
+
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw new Error('Kredensial admin tidak valid.');
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, is_active')
+          .eq('id', data.user.id)
+          .single();
+
+        if (!profile || profile.role !== 'admin' || !profile.is_active) {
+          await supabase.auth.signOut();
+          throw new Error('Akses ditolak: Akun ini tidak memiliki hak akses Administrator.');
+        }
+
+        await initAdminSession();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btn-admin-logout').addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      location.reload();
+    });
+
+    // 3. Navigasi Tab
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach((b) => {
+          b.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white';
+        });
+        btn.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-sky-600 text-white';
+
+        const targetId = btn.dataset.tab;
+        document.querySelectorAll('.tab-panel').forEach((panel) => {
+          panel.classList.toggle('hidden', panel.id !== targetId);
+        });
+      });
+    });
+
+    // 4. Muat Log Presensi & Generate Signed URL dari Bucket Private
+    async function loadAttendanceLogs() {
+      const tbody = document.getElementById('logs-table-body');
+      tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-400">Memuat data & membuat tautan foto terenkripsi...</td></tr>';
+
+      const selectedDate = document.getElementById('filter-date').value;
+      const searchKeyword = document.getElementById('filter-search').value.trim().toLowerCase();
+
+      const startIso = new Date(`${selectedDate}T00:00:00`).toISOString();
+      const endIso = new Date(`${selectedDate}T23:59:59.999`).toISOString();
+
+      const { data: logs, error } = await supabase
+        .from('presensi_log')
+        .select('id, foto_url, latitude, longitude, distance_meter, created_at, profiles(nama, nip)')
+        .gte('created_at', startIso)
+        .lte('created_at', endIso)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-rose-400">Gagal memuat data: ${error.message}</td></tr>`;
+        return;
+      }
+
+      const filtered = (logs || []).filter((item) => {
+        if (!searchKeyword) return true;
+        const nama = (item.profiles?.nama || '').toLowerCase();
+        const nip = (item.profiles?.nip || '').toLowerCase();
+        return nama.includes(searchKeyword) || nip.includes(searchKeyword);
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-500">Tidak ada catatan presensi pada tanggal ini.</td></tr>';
+        return;
+      }
+
+      // Buat Signed URL sementara (berlaku 120 detik) untuk setiap foto
+      const rowsWithSignedUrls = await Promise.all(
+        filtered.map(async (row) => {
+          const { data: signed } = await supabase.storage
+            .from(APP_CONFIG.STORAGE_BUCKET)
+            .createSignedUrl(row.foto_url, 120);
+          return { ...row, signedPhotoUrl: signed?.signedUrl || null };
+        })
+      );
+
+      tbody.innerHTML = rowsWithSignedUrls.map((row) => {
+        const waktu = new Date(row.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const nama = row.profiles?.nama || 'Tanpa Nama';
+        const nip = row.profiles?.nip || '-';
+        const imgHtml = row.signedPhotoUrl
+          ? `<button data-url="${row.signedPhotoUrl}" data-caption="${nama} (${nip}) — ${waktu}" class="preview-photo-btn flex items-center gap-2 text-sky-400 hover:underline">
+               <img src="${row.signedPhotoUrl}" class="w-10 h-12 rounded-lg object-cover border border-slate-700">
+               <span>Lihat Foto</span>
+             </button>`
+          : '<span class="text-slate-500">Foto tidak tersedia</span>';
+
+        return `
+          <tr class="hover:bg-slate-800/40">
+            <td class="p-4 font-mono text-slate-200">${waktu} WIB</td>
+            <td class="p-4">
+              <div class="font-semibold text-white">${nama}</div>
+              <div class="text-[11px] text-slate-400 font-mono">${nip}</div>
+            </td>
+            <td class="p-4 text-emerald-400 font-mono">±${row.distance_meter} m</td>
+            <td class="p-4 font-mono text-[11px]">
+              <a href="https://maps.google.com/?q=${row.latitude},${row.longitude}" target="_blank" class="text-sky-400 hover:underline">
+                ${row.latitude.toFixed(5)}, ${row.longitude.toFixed(5)} ↗
+              </a>
+            </td>
+            <td class="p-4">${imgHtml}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.preview-photo-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.getElementById('modal-photo-img').src = btn.dataset.url;
+          document.getElementById('modal-photo-caption').textContent = btn.dataset.caption;
+          document.getElementById('photo-modal').classList.remove('hidden');
+        });
+      });
+    }
+
+    document.getElementById('btn-refresh-logs').addEventListener('click', loadAttendanceLogs);
+    document.getElementById('filter-date').addEventListener('change', loadAttendanceLogs);
+    document.getElementById('filter-search').addEventListener('input', loadAttendanceLogs);
+    document.getElementById('btn-close-modal').addEventListener('click', () => {
+      document.getElementById('photo-modal').classList.add('hidden');
+    });
+
+    // 5. Tambah Pegawai Baru
+    document.getElementById('add-employee-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const feedback = document.getElementById('add-emp-feedback');
+      const btn = document.getElementById('btn-add-emp');
+      feedback.classList.add('hidden');
+      btn.disabled = true;
+
+      try {
+        const nama = document.getElementById('new-emp-nama').value.trim();
+        const nip = document.getElementById('new-emp-nip').value.trim();
+        const password = document.getElementById('new-emp-pass').value;
+        const role = document.getElementById('new-emp-role').value;
+        const email = nip.includes('@') ? nip : `${nip}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN}`;
+
+        const { data, error } = await registrarClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { nama, nip, role }
+          }
+        });
+
+        if (error) throw error;
+        if (!data?.user) throw new Error('Gagal mendaftarkan akun pengguna.');
+
+        feedback.textContent = `✅ Akun ${nama} (${email}) berhasil ditambahkan!`;
+        feedback.className = 'text-xs mt-3 text-emerald-400';
+        feedback.classList.remove('hidden');
+        e.target.reset();
+        await loadEmployees();
+      } catch (err) {
+        feedback.textContent = `❌ Gagal: ${err.message}`;
+        feedback.className = 'text-xs mt-3 text-rose-400';
+        feedback.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // 6. Muat Daftar Pegawai & Reset Gawai (registered_device_id)
+    async function loadEmployees() {
+      const tbody = document.getElementById('employees-table-body');
+      const { data: employees, error } = await supabase
+        .from('profiles')
+        .select('id, nama, nip, role, registered_device_id, is_active')
+        .order('nama', { ascending: true });
+
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-rose-400">${error.message}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = (employees || []).map((emp) => {
+        const deviceStatus = emp.registered_device_id
+          ? `<span class="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono text-[11px]">Terkunci (${emp.registered_device_id.slice(0, 8)}...)</span>`
+          : `<span class="px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 text-[11px]">Belum Terikat</span>`;
+
+        return `
+          <tr class="hover:bg-slate-800/40">
+            <td class="p-4 font-semibold text-white">${emp.nama}</td>
+            <td class="p-4 font-mono text-slate-300">${emp.nip}</td>
+            <td class="p-4 uppercase text-[11px] text-slate-400">${emp.role}</td>
+            <td class="p-4">${deviceStatus}</td>
+            <td class="p-4 text-right space-x-2">
+              <button data-id="${emp.id}" data-nama="${emp.nama}" class="reset-device-btn px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-600/40 text-[11px] font-semibold">
+                Reset Gawai
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.reset-device-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const confirmed = confirm(`Reset penguncian gawai untuk ${btn.dataset.nama}? Pegawai dapat login ulang menggunakan ponsel barunya.`);
+          if (!confirmed) return;
+
+          const { error: resetErr } = await supabase
+            .from('profiles')
+            .update({ registered_device_id: null })
+            .eq('id', btn.dataset.id);
+
+          if (resetErr) alert('Gagal mereset gawai: ' + resetErr.message);
+          else loadEmployees();
+        });
+      });
+    }
+
+    document.getElementById('btn-refresh-emp').addEventListener('click', loadEmployees);
+
+    // 7. Kelola Titik & Radius Kantor
+    async function loadOfficeLocation() {
+      const { data } = await supabase
+        .from('office_locations')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (data) {
+        document.getElementById('loc-id').value = data.id;
+        document.getElementById('loc-nama').value = data.nama_lokasi;
+        document.getElementById('loc-lat').value = data.latitude;
+        document.getElementById('loc-lng').value = data.longitude;
+        document.getElementById('loc-radius').value = data.radius_meter;
+      }
+    }
+
+    document.getElementById('btn-use-current-gps').addEventListener('click', () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('loc-lat').value = pos.coords.latitude.toFixed(6);
+          document.getElementById('loc-lng').value = pos.coords.longitude.toFixed(6);
+        },
+        (err) => alert('Gagal mengambil GPS: ' + err.message),
+        { enableHighAccuracy: true }
+      );
+    });
+
+    document.getElementById('location-config-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('loc-id').value;
+      const payload = {
+        nama_lokasi: document.getElementById('loc-nama').value.trim(),
+        latitude: parseFloat(document.getElementById('loc-lat').value),
+        longitude: parseFloat(document.getElementById('loc-lng').value),
+        radius_meter: parseFloat(document.getElementById('loc-radius').value)
+      };
+
+      const { error } = await supabase
+        .from('office_locations')
+        .update(payload)
+        .eq('id', id);
+
+      if (error) alert('Gagal menyimpan lokasi: ' + error.message);
+      else alert('Titik koordinat dan radius kantor berhasil diperbarui!');
+    });
+
+    initAdminSession();
+  </script>
+</body>
+</html>
