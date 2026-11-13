@@ -129,6 +129,18 @@ function clearPermissionWatcher() {
   }
 }
 
+function purgeLocalAuthTokens() {
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('sb-') && key.includes('auth-token')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch {
+    // Abaikan jika penyimpanan lokal dibatasi
+  }
+}
+
 // =====================================================================
 // 4. INISIALISASI GERBANG KEAMANAN PWA
 // =====================================================================
@@ -149,7 +161,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // 5. SIKLUS HIDUP UTAMA PRESENSI (AKTIF HANYA SAAT PWA TERINSTAL)
 // =====================================================================
 async function bootstrapAttendanceLifecycle() {
-  await supabase.auth.signOut().catch(() => {});
+  purgeLocalAuthTokens();
+  Promise.race([
+    supabase.auth.signOut({ scope: 'local' }),
+    sleep(1500)
+  ]).catch(() => {});
 
   appState.deviceId = await getBoundDeviceId();
 
@@ -332,7 +348,12 @@ async function handleLoginSubmit(event) {
     // 5. Lanjut otomatis ke tahap pengecekan lokasi GPS
     await runLocationCheckFlow();
   } catch (err) {
-    await supabase.auth.signOut().catch(() => {});
+    purgeLocalAuthTokens();
+    Promise.race([
+      supabase.auth.signOut({ scope: 'local' }),
+      sleep(1500)
+    ]).catch(() => {});
+
     appState.currentUser = null;
     appState.userProfile = null;
     appState.activeScheduleType = null;
@@ -689,11 +710,9 @@ async function handleDownloadReceiptPng() {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
 
-    // Latar belakang utama
     ctx.fillStyle = '#090d16';
     ctx.fillRect(0, 0, width, height);
 
-    // Kartu utama
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 3;
@@ -702,7 +721,6 @@ async function handleDownloadReceiptPng() {
     ctx.fill();
     ctx.stroke();
 
-    // Header Badge
     ctx.fillStyle = payload.isPulang ? 'rgba(245, 158, 11, 0.16)' : 'rgba(14, 165, 233, 0.16)';
     ctx.beginPath();
     ctx.roundRect(width / 2 - 140, 74, 280, 40, 20);
@@ -713,7 +731,6 @@ async function handleDownloadReceiptPng() {
     ctx.textAlign = 'center';
     ctx.fillText(payload.isPulang ? 'PRESENSI PULANG' : 'PRESENSI DATANG', width / 2, 100);
 
-    // Judul & Identitas
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
     ctx.fillText(payload.titleText, width / 2, 156);
@@ -730,7 +747,6 @@ async function handleDownloadReceiptPng() {
     ctx.font = '17px system-ui, -apple-system, sans-serif';
     ctx.fillText(payload.formattedTime, width / 2, 256);
 
-    // Bingkai Foto Swafoto (3:4)
     const photoW = 330;
     const photoH = 440;
     const photoX = (width - photoW) / 2;
@@ -749,7 +765,6 @@ async function handleDownloadReceiptPng() {
     ctx.roundRect(photoX, photoY, photoW, photoH, 24);
     ctx.stroke();
 
-    // Kotak Ringkasan Riwayat Hari Ini
     const boxX = 76;
     const boxY = 758;
     const boxW = width - 152;
@@ -766,7 +781,6 @@ async function handleDownloadReceiptPng() {
     ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
     ctx.fillText('RINGKASAN KEHADIRAN HARI INI', boxX + 26, boxY + 34);
 
-    // Kolom Datang
     ctx.fillStyle = '#64748b';
     ctx.font = '16px system-ui, -apple-system, sans-serif';
     ctx.fillText('Presensi Datang', boxX + 26, boxY + 74);
@@ -774,7 +788,6 @@ async function handleDownloadReceiptPng() {
     ctx.font = 'bold 22px monospace';
     ctx.fillText(payload.datangText, boxX + 26, boxY + 108);
 
-    // Kolom Pulang
     const col2X = width / 2 + 20;
     ctx.fillStyle = '#64748b';
     ctx.font = '16px system-ui, -apple-system, sans-serif';
@@ -783,7 +796,6 @@ async function handleDownloadReceiptPng() {
     ctx.font = 'bold 22px monospace';
     ctx.fillText(payload.pulangText, col2X, boxY + 108);
 
-    // Detail Koordinat & Status Server
     ctx.fillStyle = '#94a3b8';
     ctx.font = '17px monospace';
     ctx.fillText(`Koordinat : ${payload.coordsText}`, boxX + 10, 954);
@@ -812,15 +824,9 @@ async function handleDownloadReceiptPng() {
 }
 
 // =====================================================================
-// 11. SELESAI & KEMBALI KE HALAMAN LOGIN
+// 11. SELESAI & KEMBALI KE HALAMAN LOGIN (INSTAN TANPA MENUNGGU JARINGAN)
 // =====================================================================
-async function handleReturnToLogin() {
-  const btn = document.getElementById('btn-finish-exit');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Mengakhiri Sesi...';
-  }
-
+function handleReturnToLogin() {
   stopActiveCamera();
   clearPermissionWatcher();
 
@@ -835,7 +841,12 @@ async function handleReturnToLogin() {
   appState.verifiedCoords = null;
   appState.lastReceiptPayload = null;
 
-  await supabase.auth.signOut().catch(() => {});
+  // Bersihkan sesi lokal segera & panggil signOut lokal di latar belakang
+  purgeLocalAuthTokens();
+  Promise.race([
+    supabase.auth.signOut({ scope: 'local' }),
+    sleep(1500)
+  ]).catch(() => {});
 
   const loginForm = document.getElementById('login-form');
   if (loginForm) loginForm.reset();
@@ -846,10 +857,18 @@ async function handleReturnToLogin() {
     alertBox.textContent = '';
   }
 
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = 'Selesai & Kembali ke Halaman Login';
+  const btnSubmit = document.getElementById('btn-submit-login');
+  if (btnSubmit) {
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = 'Masuk & Verifikasi Lokasi';
+  }
+
+  const btnFinish = document.getElementById('btn-finish-exit');
+  if (btnFinish) {
+    btnFinish.disabled = false;
+    btnFinish.textContent = 'Selesai & Kembali ke Halaman Login';
   }
 
   switchView('view-login');
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
