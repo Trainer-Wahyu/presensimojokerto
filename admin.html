@@ -114,7 +114,7 @@
       <!-- Form Tambah Pegawai Satuan -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <h2 class="text-base font-bold text-white mb-1">Tambah Akun Pegawai Satuan</h2>
-        <p class="text-xs text-slate-400 mb-4">Gawai pegawai akan otomatis terkunci pada perangkat pertama yang dipakai login.</p>
+        <p class="text-xs text-slate-400 mb-4">Gawai pegawai akan otomatis terkunci satu arah &amp; dua arah pada perangkat pertama yang dipakai login.</p>
 
         <form id="add-employee-form" class="grid grid-cols-1 md:grid-cols-5 gap-3">
           <input type="text" id="new-emp-nama" required placeholder="Nama Lengkap &amp; Gelar"
@@ -140,7 +140,7 @@
           <div>
             <h2 class="text-base font-bold text-white mb-1">Impor Data Pegawai Massal (CSV)</h2>
             <p class="text-xs text-slate-400">
-              Unggah file CSV sesuai format template (mendukung pemisah koma maupun titik koma dari Excel).
+              Unggah file CSV sesuai format template (mendukung pemisah koma maupun titik koma dari Excel, diproses cepat dalam satu transaksi database).
             </p>
           </div>
           <button type="button" id="btn-download-template"
@@ -167,15 +167,19 @@
           <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
             <div id="import-progress-bar" class="h-full bg-sky-500 transition-all duration-200" style="width: 0%"></div>
           </div>
-          <div id="import-result-log" class="max-h-44 overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-mono space-y-1 text-slate-300"></div>
+          <div id="import-result-log" class="max-h-48 overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-mono space-y-1 text-slate-300"></div>
         </div>
       </div>
 
       <!-- Tabel Daftar Pegawai -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <h3 class="text-sm font-bold text-white">Daftar Pegawai Terdaftar (<span id="emp-total-count">0</span>)</h3>
-          <button id="btn-refresh-emp" class="text-xs text-sky-400 hover:underline">Segarkan Daftar</button>
+          <div class="flex items-center gap-3">
+            <input type="text" id="emp-search-input" placeholder="Cari pegawai..."
+              class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+            <button id="btn-refresh-emp" class="text-xs text-sky-400 hover:underline">Segarkan Daftar</button>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs">
@@ -320,12 +324,7 @@
        SCRIPT UTAMA DASHBOARD ADMIN
        ===================================================================== -->
   <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
     import { APP_CONFIG, supabase } from './js/supabase-client.js';
-
-    const registrarClient = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
 
     const loginView = document.getElementById('admin-login-view');
     const dashView = document.getElementById('admin-dashboard-view');
@@ -387,12 +386,12 @@
       btn.textContent = 'Memverifikasi Akses...';
 
       try {
-        const rawId = document.getElementById('admin-email').value.trim();
+        const rawId = document.getElementById('admin-email').value.trim().toLowerCase();
         const password = document.getElementById('admin-password').value;
-        const email = rawId.includes('@') ? rawId : `${rawId}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN}`;
+        const email = rawId.includes('@') ? rawId : `${rawId}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN.toLowerCase()}`;
 
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw new Error('Email/NIP atau kata sandi admin tidak valid.');
+        if (error) throw new Error(`Login gagal (${email}): ${error.message}`);
 
         const { data: profile, error: profErr } = await supabase
           .from('profiles')
@@ -539,7 +538,7 @@
     });
 
     // ===================================================================
-    // 5. TAMBAH PEGAWAI SATUAN
+    // 5. TAMBAH PEGAWAI SATUAN (VIA RPC BEBAS RATE LIMIT)
     // ===================================================================
     document.getElementById('add-employee-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -554,20 +553,20 @@
         const nip = document.getElementById('new-emp-nip').value.trim();
         const password = document.getElementById('new-emp-pass').value;
         const role = document.getElementById('new-emp-role').value;
-        const email = nip.includes('@') ? nip : `${nip}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN}`;
 
-        const { data, error } = await registrarClient.auth.signUp({
-          email,
-          password,
-          options: { data: { nama, nip, role } }
+        const { data: rpcRes, error } = await supabase.rpc('admin_bulk_import_employees', {
+          p_employees: [{ rowNumber: 1, nama, nip, password, role }],
+          p_email_domain: APP_CONFIG.DEFAULT_EMAIL_DOMAIN
         });
 
         if (error) throw error;
-        if (!data?.user || (Array.isArray(data.user.identities) && data.user.identities.length === 0)) {
-          throw new Error('NIP atau email tersebut sudah terdaftar di sistem.');
+
+        const detail = rpcRes?.details?.[0];
+        if (!detail || detail.status !== 'success') {
+          throw new Error(detail?.message || 'Gagal mendaftarkan akun pegawai.');
         }
 
-        feedback.textContent = `✅ Akun ${nama} (${email}) berhasil didaftarkan!`;
+        feedback.textContent = `✅ Akun ${nama} (${detail.email}) berhasil didaftarkan!`;
         feedback.className = 'text-xs mt-3 text-emerald-400';
         feedback.classList.remove('hidden');
         e.target.reset();
@@ -583,7 +582,7 @@
     });
 
     // ===================================================================
-    // 6. UNDUH TEMPLATE & IMPOR DATA PEGAWAI MASSAL (CSV)
+    // 6. UNDUH TEMPLATE & IMPOR DATA PEGAWAI MASSAL (CSV VIA RPC)
     // ===================================================================
     document.getElementById('btn-download-template').addEventListener('click', () => {
       const csvContent = [
@@ -695,7 +694,6 @@
         p.className = colorClass;
         p.textContent = msg;
         resultLog.appendChild(p);
-        resultLog.scrollTop = resultLog.scrollHeight;
       };
 
       try {
@@ -706,55 +704,41 @@
           throw new Error('Tidak ditemukan baris data pegawai yang valid.');
         }
 
-        let successCount = 0;
-        let failCount = 0;
+        progressLabel.textContent = `Mengirim ${rows.length} data pegawai ke database...`;
+        progressCount.textContent = `0 / ${rows.length}`;
+        progressBar.style.width = '45%';
 
-        for (let i = 0; i < rows.length; i++) {
-          const item = rows[i];
-          const currentStep = i + 1;
-          const pct = Math.round((currentStep / rows.length) * 100);
+        // Kirim seluruh baris dalam 1 panggilan RPC (bebas rate limit Auth)
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_bulk_import_employees', {
+          p_employees: rows,
+          p_email_domain: APP_CONFIG.DEFAULT_EMAIL_DOMAIN
+        });
 
-          progressLabel.textContent = `Mendaftarkan: ${item.nama || item.nip}...`;
-          progressCount.textContent = `${currentStep} / ${rows.length}`;
-          progressBar.style.width = `${pct}%`;
+        if (rpcErr) throw rpcErr;
 
-          if (!item.nama || !item.nip || item.password.length < 6) {
-            failCount++;
+        progressBar.style.width = '100%';
+        progressCount.textContent = `${rows.length} / ${rows.length}`;
+        progressLabel.textContent = `Selesai: ${rpcRes.success_count} baru ditambahkan, ${rpcRes.fail_count} dilewati/gagal.`;
+
+        (rpcRes.details || []).forEach((item) => {
+          if (item.status === 'success') {
             appendLog(
-              `[Baris ${item.rowNumber}] GAGAL (${item.nip || 'Tanpa NIP'}): Nama/NIP kosong atau password < 6 karakter.`,
-              'text-rose-400'
-            );
-            continue;
-          }
-
-          const email = item.nip.includes('@')
-            ? item.nip
-            : `${item.nip}@${APP_CONFIG.DEFAULT_EMAIL_DOMAIN}`;
-
-          const { data, error } = await registrarClient.auth.signUp({
-            email,
-            password: item.password,
-            options: { data: { nama: item.nama, nip: item.nip, role: item.role } }
-          });
-
-          if (error || !data?.user || (Array.isArray(data.user.identities) && data.user.identities.length === 0)) {
-            failCount++;
-            appendLog(
-              `[Baris ${item.rowNumber}] GAGAL (${item.nip}): ${error?.message || 'Akun sudah terdaftar.'}`,
-              'text-rose-400'
-            );
-          } else {
-            successCount++;
-            appendLog(
-              `[Baris ${item.rowNumber}] BERHASIL: ${item.nama} (${email})`,
+              `[Baris ${item.row}] BERHASIL: ${item.nama} (${item.email})`,
               'text-emerald-400'
             );
+          } else if (item.status === 'skipped') {
+            appendLog(
+              `[Baris ${item.row}] DILEWATI (${item.nip}): ${item.message}`,
+              'text-amber-400'
+            );
+          } else {
+            appendLog(
+              `[Baris ${item.row}] GAGAL (${item.nip || 'Tanpa NIP'}): ${item.message}`,
+              'text-rose-400'
+            );
           }
+        });
 
-          await new Promise((res) => setTimeout(res, 250));
-        }
-
-        progressLabel.textContent = `Selesai: ${successCount} berhasil, ${failCount} gagal.`;
         await loadEmployees();
       } catch (err) {
         progressLabel.textContent = 'Impor dibatalkan.';
@@ -767,31 +751,19 @@
     });
 
     // ===================================================================
-    // 7. DAFTAR PEGAWAI, EDIT, HAPUS, & RESET PENGUNCIAN GAWAI
+    // 7. DAFTAR PEGAWAI, PENCARIAN, EDIT, HAPUS, & RESET GAWAI
     // ===================================================================
-    async function loadEmployees() {
+    function renderEmployeesTable(list) {
       const tbody = document.getElementById('employees-table-body');
       const countEl = document.getElementById('emp-total-count');
+      countEl.textContent = list.length;
 
-      const { data: employees, error } = await supabase
-        .from('profiles')
-        .select('id, nama, nip, role, registered_device_id, is_active')
-        .order('nama', { ascending: true });
-
-      if (error) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-rose-400">${escapeHtml(error.message)}</td></tr>`;
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-500">Tidak ada data pegawai yang cocok.</td></tr>';
         return;
       }
 
-      cachedEmployees = employees || [];
-      countEl.textContent = cachedEmployees.length;
-
-      if (cachedEmployees.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-500">Belum ada data pegawai terdaftar.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = cachedEmployees.map((emp) => {
+      tbody.innerHTML = list.map((emp) => {
         const nama = escapeHtml(emp.nama);
         const nip = escapeHtml(emp.nip);
         const role = escapeHtml(emp.role);
@@ -842,7 +814,6 @@
         `;
       }).join('');
 
-      // Handler: Edit Pegawai (Buka Modal)
       document.querySelectorAll('.edit-emp-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const emp = cachedEmployees.find((item) => item.id === btn.dataset.id);
@@ -860,7 +831,6 @@
         });
       });
 
-      // Handler: Reset Gawai
       document.querySelectorAll('.reset-device-btn').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const confirmed = confirm(
@@ -878,7 +848,6 @@
         });
       });
 
-      // Handler: Hapus Pegawai
       document.querySelectorAll('.delete-emp-btn').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const confirmed = confirm(
@@ -903,6 +872,39 @@
         });
       });
     }
+
+    async function loadEmployees() {
+      const tbody = document.getElementById('employees-table-body');
+      const { data: employees, error } = await supabase
+        .from('profiles')
+        .select('id, nama, nip, role, registered_device_id, is_active')
+        .order('nama', { ascending: true });
+
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-rose-400">${escapeHtml(error.message)}</td></tr>`;
+        return;
+      }
+
+      cachedEmployees = employees || [];
+      filterAndRenderEmployees();
+    }
+
+    function filterAndRenderEmployees() {
+      const kw = (document.getElementById('emp-search-input')?.value || '').trim().toLowerCase();
+      if (!kw) {
+        renderEmployeesTable(cachedEmployees);
+        return;
+      }
+      const filtered = cachedEmployees.filter(
+        (e) =>
+          (e.nama || '').toLowerCase().includes(kw) ||
+          (e.nip || '').toLowerCase().includes(kw)
+      );
+      renderEmployeesTable(filtered);
+    }
+
+    document.getElementById('emp-search-input').addEventListener('input', filterAndRenderEmployees);
+    document.getElementById('btn-refresh-emp').addEventListener('click', loadEmployees);
 
     // Modal Edit Pegawai: Batal & Simpan
     const editModal = document.getElementById('edit-emp-modal');
@@ -951,8 +953,6 @@
         btnSave.textContent = 'Simpan Perubahan';
       }
     });
-
-    document.getElementById('btn-refresh-emp').addEventListener('click', loadEmployees);
 
     // ===================================================================
     // 8. PENGATURAN TITIK KOORDINAT & RADIUS KANTOR
