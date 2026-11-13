@@ -56,35 +56,53 @@
 
     <!-- Navigasi Tab -->
     <nav class="flex gap-2 my-6 border-b border-slate-800 pb-3 overflow-x-auto">
-      <button data-tab="tab-logs" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-sky-600 text-white transition">
-        Rekap Presensi &amp; Foto
+      <button data-tab="tab-logs" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-sky-600 text-white transition whitespace-nowrap">
+        Rekap Presensi &amp; Ekspor
       </button>
-      <button data-tab="tab-employees" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white transition">
+      <button data-tab="tab-employees" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white transition whitespace-nowrap">
         Data Pegawai, Impor CSV &amp; Reset Gawai
       </button>
-      <button data-tab="tab-locations" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white transition">
-        Titik &amp; Radius Kantor
+      <button data-tab="tab-locations" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white transition whitespace-nowrap">
+        Titik Radius &amp; Jadwal Presensi
       </button>
     </nav>
 
     <!-- =================================================================
-         TAB 1: REKAP PRESENSI & BUKTI FOTO (SIGNED URL)
+         TAB 1: REKAP PRESENSI DATANG & PULANG + EKSPOR CSV/EXCEL
          ================================================================= -->
     <section id="tab-logs" class="tab-panel space-y-4">
       <div class="flex flex-wrap items-end justify-between gap-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
         <div class="flex flex-wrap items-center gap-3">
           <div>
-            <label for="filter-date" class="block text-[11px] text-slate-400 mb-1">Tanggal Presensi</label>
-            <input type="date" id="filter-date" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+            <label for="filter-date-start" class="block text-[11px] text-slate-400 mb-1">Dari Tanggal</label>
+            <input type="date" id="filter-date-start" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+          </div>
+          <div>
+            <label for="filter-date-end" class="block text-[11px] text-slate-400 mb-1">Sampai Tanggal</label>
+            <input type="date" id="filter-date-end" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+          </div>
+          <div>
+            <label for="filter-jenis" class="block text-[11px] text-slate-400 mb-1">Jenis Presensi</label>
+            <select id="filter-jenis" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+              <option value="all">Semua (Datang &amp; Pulang)</option>
+              <option value="datang">Presensi Datang</option>
+              <option value="pulang">Presensi Pulang</option>
+            </select>
           </div>
           <div>
             <label for="filter-search" class="block text-[11px] text-slate-400 mb-1">Cari Nama / NIP</label>
             <input type="text" id="filter-search" placeholder="Ketik nama atau NIP..." class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
           </div>
         </div>
-        <button id="btn-refresh-logs" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition">
-          Muat Ulang Data
-        </button>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button id="btn-export-recap" type="button" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition">
+            ⬇ Ekspor Rekap Datang &amp; Pulang (CSV)
+          </button>
+          <button id="btn-refresh-logs" type="button" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition">
+            Muat Ulang
+          </button>
+        </div>
       </div>
 
       <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
@@ -92,15 +110,16 @@
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-950 text-slate-400 border-b border-slate-800">
               <tr>
-                <th class="p-4">Waktu Server</th>
+                <th class="p-4">Tanggal &amp; Waktu Server</th>
                 <th class="p-4">Pegawai</th>
-                <th class="p-4">Jarak dari Titik</th>
+                <th class="p-4">Jenis</th>
+                <th class="p-4">Jarak</th>
                 <th class="p-4">Koordinat GPS</th>
                 <th class="p-4">Bukti Selfie (Private)</th>
               </tr>
             </thead>
             <tbody id="logs-table-body" class="divide-y divide-slate-800/80">
-              <tr><td colspan="5" class="p-6 text-center text-slate-500">Memuat data presensi...</td></tr>
+              <tr><td colspan="6" class="p-6 text-center text-slate-500">Memuat data presensi...</td></tr>
             </tbody>
           </table>
         </div>
@@ -114,7 +133,7 @@
       <!-- Form Tambah Pegawai Satuan -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <h2 class="text-base font-bold text-white mb-1">Tambah Akun Pegawai Satuan</h2>
-        <p class="text-xs text-slate-400 mb-4">Gawai pegawai akan otomatis terkunci satu arah &amp; dua arah pada perangkat pertama yang dipakai login.</p>
+        <p class="text-xs text-slate-400 mb-4">Gawai pegawai akan otomatis terkunci dua arah (1 akun = 1 gawai &amp; 1 gawai = 1 akun) pada perangkat pertama yang dipakai login.</p>
 
         <form id="add-employee-form" class="grid grid-cols-1 md:grid-cols-5 gap-3">
           <input type="text" id="new-emp-nama" required placeholder="Nama Lengkap &amp; Gelar"
@@ -201,46 +220,104 @@
     </section>
 
     <!-- =================================================================
-         TAB 3: KONFIGURASI LOKASI & RADIUS KANTOR
+         TAB 3: KONFIGURASI LOKASI RADIUS & JADWAL PRESENSI DATANG / PULANG
          ================================================================= -->
     <section id="tab-locations" class="tab-panel hidden">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-xl">
-        <h2 class="text-base font-bold text-white mb-1">Pengaturan Titik Lokasi Kantor</h2>
-        <p class="text-xs text-slate-400 mb-5">Koordinat dan batas radius (meter) ini dievaluasi langsung oleh server PostgreSQL.</p>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Kartu 1: Titik & Radius Lokasi -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-base font-bold text-white mb-1">Pengaturan Titik Lokasi Kantor</h2>
+          <p class="text-xs text-slate-400 mb-5">Koordinat dan batas radius (meter) ini dievaluasi langsung oleh server PostgreSQL.</p>
 
-        <form id="location-config-form" class="space-y-4">
-          <input type="hidden" id="loc-id">
-          <div>
-            <label for="loc-nama" class="block text-xs text-slate-300 mb-1">Nama Lokasi / Instansi</label>
-            <input type="text" id="loc-nama" required placeholder="Contoh: Kantor Utama"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
-          </div>
-          <div class="grid grid-cols-2 gap-3">
+          <form id="location-config-form" class="space-y-4">
+            <input type="hidden" id="loc-id">
             <div>
-              <label for="loc-lat" class="block text-xs text-slate-300 mb-1">Latitude</label>
-              <input type="number" step="any" id="loc-lat" required placeholder="-7.257500"
+              <label for="loc-nama" class="block text-xs text-slate-300 mb-1">Nama Lokasi / Instansi</label>
+              <input type="text" id="loc-nama" required placeholder="Contoh: Kantor Utama"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
             </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="loc-lat" class="block text-xs text-slate-300 mb-1">Latitude</label>
+                <input type="number" step="any" id="loc-lat" required placeholder="-7.257500"
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+              </div>
+              <div>
+                <label for="loc-lng" class="block text-xs text-slate-300 mb-1">Longitude</label>
+                <input type="number" step="any" id="loc-lng" required placeholder="112.752100"
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+              </div>
+            </div>
             <div>
-              <label for="loc-lng" class="block text-xs text-slate-300 mb-1">Longitude</label>
-              <input type="number" step="any" id="loc-lng" required placeholder="112.752100"
+              <label for="loc-radius" class="block text-xs text-slate-300 mb-1">Radius Maksimal Diizinkan (Meter)</label>
+              <input type="number" step="1" min="5" id="loc-radius" required placeholder="50"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
             </div>
-          </div>
-          <div>
-            <label for="loc-radius" class="block text-xs text-slate-300 mb-1">Radius Maksimal Diizinkan (Meter)</label>
-            <input type="number" step="1" min="5" id="loc-radius" required placeholder="50"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
-          </div>
-          <div class="flex flex-wrap gap-3 pt-2">
-            <button type="button" id="btn-use-current-gps" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition">
-              Ambil Koordinat Posisi Saya Saat Ini
-            </button>
-            <button type="submit" id="btn-save-loc" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition">
-              Simpan Perubahan Lokasi
-            </button>
-          </div>
-        </form>
+            <div class="flex flex-wrap gap-3 pt-2">
+              <button type="button" id="btn-use-current-gps" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition">
+                Ambil Koordinat Posisi Saya
+              </button>
+              <button type="submit" id="btn-save-loc" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition">
+                Simpan Lokasi
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Kartu 2: Jadwal Jam Presensi Datang & Pulang -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-base font-bold text-white mb-1">Pengaturan Jam Presensi Datang &amp; Pulang</h2>
+          <p class="text-xs text-slate-400 mb-5">Sistem otomatis mengaktifkan jenis presensi berdasarkan waktu server pada zona waktu berikut.</p>
+
+          <form id="schedule-config-form" class="space-y-4">
+            <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-3">
+              <p class="text-xs font-semibold text-sky-400">Rentang Waktu Presensi Datang</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="sched-datang-mulai" class="block text-[11px] text-slate-400 mb-1">Jam Mulai Datang</label>
+                  <input type="time" id="sched-datang-mulai" required
+                    class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+                </div>
+                <div>
+                  <label for="sched-datang-selesai" class="block text-[11px] text-slate-400 mb-1">Batas Akhir Datang</label>
+                  <input type="time" id="sched-datang-selesai" required
+                    class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+                </div>
+              </div>
+            </div>
+
+            <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-3">
+              <p class="text-xs font-semibold text-amber-400">Rentang Waktu Presensi Pulang</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="sched-pulang-mulai" class="block text-[11px] text-slate-400 mb-1">Jam Mulai Pulang</label>
+                  <input type="time" id="sched-pulang-mulai" required
+                    class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+                </div>
+                <div>
+                  <label for="sched-pulang-selesai" class="block text-[11px] text-slate-400 mb-1">Batas Akhir Pulang</label>
+                  <input type="time" id="sched-pulang-selesai" required
+                    class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label for="sched-timezone" class="block text-xs text-slate-300 mb-1">Zona Waktu Server</label>
+              <select id="sched-timezone" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500">
+                <option value="Asia/Jakarta">WIB — Waktu Indonesia Barat (Asia/Jakarta)</option>
+                <option value="Asia/Makassar">WITA — Waktu Indonesia Tengah (Asia/Makassar)</option>
+                <option value="Asia/Jayapura">WIT — Waktu Indonesia Timur (Asia/Jayapura)</option>
+              </select>
+            </div>
+
+            <div class="pt-1">
+              <button type="submit" id="btn-save-sched" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition">
+                Simpan Jadwal Presensi
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </section>
   </div>
@@ -331,6 +408,7 @@
 
     let currentAdminId = null;
     let cachedEmployees = [];
+    let cachedAttendanceLogs = [];
 
     function escapeHtml(str) {
       return String(str ?? '')
@@ -341,8 +419,17 @@
         .replace(/'/g, '&#39;');
     }
 
+    function csvEscape(val) {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    }
+
     const todayStr = new Date().toLocaleDateString('en-CA');
-    document.getElementById('filter-date').value = todayStr;
+    document.getElementById('filter-date-start').value = todayStr;
+    document.getElementById('filter-date-end').value = todayStr;
 
     // ===================================================================
     // 1. VERIFIKASI SESI ADMINISTRATOR
@@ -365,9 +452,10 @@
           `Masuk sebagai: ${profile.nama} (${session.user.email})`;
 
         await Promise.all([
-          loadAttendanceLogs(),
           loadEmployees(),
-          loadOfficeLocation()
+          loadAttendanceLogs(),
+          loadOfficeLocation(),
+          loadAttendanceSchedule()
         ]);
       } else {
         await supabase.auth.signOut();
@@ -425,9 +513,9 @@
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach((b) => {
-          b.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white transition';
+          b.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white transition whitespace-nowrap';
         });
-        btn.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-sky-600 text-white transition';
+        btn.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-sky-600 text-white transition whitespace-nowrap';
 
         const targetId = btn.dataset.tab;
         document.querySelectorAll('.tab-panel').forEach((panel) => {
@@ -437,31 +525,35 @@
     });
 
     // ===================================================================
-    // 4. REKAP PRESENSI & SIGNED URL FOTO PRIVATE
+    // 4. REKAP PRESENSI DATANG & PULANG + EKSPOR CSV/EXCEL
     // ===================================================================
     async function loadAttendanceLogs() {
       const tbody = document.getElementById('logs-table-body');
-      tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-400">Memuat data &amp; membuat tautan foto terenkripsi...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Memuat data &amp; membuat tautan foto terenkripsi...</td></tr>';
 
-      const selectedDate = document.getElementById('filter-date').value || todayStr;
+      const dateStart = document.getElementById('filter-date-start').value || todayStr;
+      const dateEnd = document.getElementById('filter-date-end').value || dateStart;
+      const jenisFilter = document.getElementById('filter-jenis').value;
       const searchKeyword = document.getElementById('filter-search').value.trim().toLowerCase();
-
-      const startIso = new Date(`${selectedDate}T00:00:00`).toISOString();
-      const endIso = new Date(`${selectedDate}T23:59:59.999`).toISOString();
 
       const { data: logs, error } = await supabase
         .from('presensi_log')
-        .select('id, foto_url, latitude, longitude, distance_meter, created_at, profiles(nama, nip)')
-        .gte('created_at', startIso)
-        .lte('created_at', endIso)
+        .select('id, user_id, foto_url, latitude, longitude, distance_meter, jenis_presensi, tanggal_lokal, created_at, profiles(nama, nip)')
+        .gte('tanggal_lokal', dateStart)
+        .lte('tanggal_lokal', dateEnd)
         .order('created_at', { ascending: false });
 
       if (error) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-rose-400">Gagal memuat data: ${escapeHtml(error.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-rose-400">Gagal memuat data: ${escapeHtml(error.message)}</td></tr>`;
         return;
       }
 
-      const filtered = (logs || []).filter((item) => {
+      cachedAttendanceLogs = logs || [];
+
+      const filtered = cachedAttendanceLogs.filter((item) => {
+        if (jenisFilter !== 'all' && (item.jenis_presensi || 'datang') !== jenisFilter) {
+          return false;
+        }
         if (!searchKeyword) return true;
         const nama = (item.profiles?.nama || '').toLowerCase();
         const nip = (item.profiles?.nip || '').toLowerCase();
@@ -469,7 +561,7 @@
       });
 
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-500">Tidak ada catatan presensi pada tanggal ini.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-500">Tidak ada catatan presensi pada filter yang dipilih.</td></tr>';
         return;
       }
 
@@ -483,6 +575,7 @@
       );
 
       tbody.innerHTML = rowsWithSignedUrls.map((row) => {
+        const tanggal = escapeHtml(row.tanggal_lokal || '');
         const waktu = new Date(row.created_at).toLocaleTimeString('id-ID', {
           hour: '2-digit',
           minute: '2-digit',
@@ -490,9 +583,14 @@
         });
         const nama = escapeHtml(row.profiles?.nama || 'Tanpa Nama');
         const nip = escapeHtml(row.profiles?.nip || '-');
+        const jenis = (row.jenis_presensi || 'datang').toLowerCase();
+
+        const jenisBadge = jenis === 'pulang'
+          ? `<span class="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold text-[11px] uppercase">Pulang</span>`
+          : `<span class="px-2.5 py-1 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold text-[11px] uppercase">Datang</span>`;
 
         const imgHtml = row.signedPhotoUrl
-          ? `<button type="button" data-url="${escapeHtml(row.signedPhotoUrl)}" data-caption="${nama} (${nip}) — ${waktu}" class="preview-photo-btn flex items-center gap-2.5 text-sky-400 hover:underline">
+          ? `<button type="button" data-url="${escapeHtml(row.signedPhotoUrl)}" data-caption="${nama} (${nip}) — ${jenis.toUpperCase()} ${tanggal} ${waktu}" class="preview-photo-btn flex items-center gap-2.5 text-sky-400 hover:underline">
                <img src="${escapeHtml(row.signedPhotoUrl)}" alt="Selfie" class="w-10 h-12 rounded-lg object-cover border border-slate-700 bg-black">
                <span>Lihat Foto</span>
              </button>`
@@ -500,11 +598,15 @@
 
         return `
           <tr class="hover:bg-slate-800/40 transition">
-            <td class="p-4 font-mono text-slate-200">${waktu}</td>
+            <td class="p-4 font-mono text-slate-200">
+              <div>${tanggal}</div>
+              <div class="text-[11px] text-slate-400">${waktu}</div>
+            </td>
             <td class="p-4">
               <div class="font-semibold text-white">${nama}</div>
               <div class="text-[11px] text-slate-400 font-mono">${nip}</div>
             </td>
+            <td class="p-4">${jenisBadge}</td>
             <td class="p-4 text-emerald-400 font-mono">±${row.distance_meter} m</td>
             <td class="p-4 font-mono text-[11px]">
               <a href="https://maps.google.com/?q=${row.latitude},${row.longitude}" target="_blank" rel="noopener" class="text-sky-400 hover:underline">
@@ -525,8 +627,191 @@
       });
     }
 
+    // Fungsi Ekspor Rekap Datang & Pulang ke CSV (Siap Buka di Excel)
+    async function exportAttendanceRecapCsv() {
+      const btnExport = document.getElementById('btn-export-recap');
+      const originalText = btnExport.textContent;
+      btnExport.disabled = true;
+      btnExport.textContent = 'Menyiapkan File CSV...';
+
+      try {
+        const dateStart = document.getElementById('filter-date-start').value || todayStr;
+        const dateEnd = document.getElementById('filter-date-end').value || dateStart;
+        const searchKeyword = document.getElementById('filter-search').value.trim().toLowerCase();
+
+        // Ambil data terbaru untuk rentang tanggal terpilih
+        const { data: logs, error } = await supabase
+          .from('presensi_log')
+          .select('user_id, latitude, longitude, distance_meter, jenis_presensi, tanggal_lokal, created_at, profiles(nama, nip)')
+          .gte('tanggal_lokal', dateStart)
+          .lte('tanggal_lokal', dateEnd)
+          .order('tanggal_lokal', { ascending: true })
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        // Pastikan daftar pegawai termuat untuk rekap harian lengkap
+        if (cachedEmployees.length === 0) {
+          await loadEmployees();
+        }
+
+        // Kelompokkan catatan berdasarkan (tanggal_lokal + user_id)
+        const groupedMap = new Map();
+
+        (logs || []).forEach((row) => {
+          const tgl = row.tanggal_lokal;
+          const uid = row.user_id;
+          const key = `${tgl}__${uid}`;
+
+          if (!groupedMap.has(key)) {
+            groupedMap.set(key, {
+              tanggal: tgl,
+              user_id: uid,
+              nama: row.profiles?.nama || 'Tanpa Nama',
+              nip: row.profiles?.nip || '-',
+              datang: null,
+              pulang: null
+            });
+          }
+
+          const entry = groupedMap.get(key);
+          const jenis = (row.jenis_presensi || 'datang').toLowerCase();
+          if (jenis === 'pulang') {
+            entry.pulang = row;
+          } else {
+            entry.datang = row;
+          }
+        });
+
+        // Jika ekspor 1 hari tertentu, sertakan seluruh pegawai aktif (termasuk yang belum presensi)
+        if (dateStart === dateEnd) {
+          cachedEmployees
+            .filter((emp) => emp.role === 'pegawai' && emp.is_active !== false)
+            .forEach((emp) => {
+              const key = `${dateStart}__${emp.id}`;
+              if (!groupedMap.has(key)) {
+                groupedMap.set(key, {
+                  tanggal: dateStart,
+                  user_id: emp.id,
+                  nama: emp.nama,
+                  nip: emp.nip,
+                  datang: null,
+                  pulang: null
+                });
+              }
+            });
+        }
+
+        let rowsList = Array.from(groupedMap.values());
+
+        if (searchKeyword) {
+          rowsList = rowsList.filter(
+            (r) =>
+              r.nama.toLowerCase().includes(searchKeyword) ||
+              r.nip.toLowerCase().includes(searchKeyword)
+          );
+        }
+
+        rowsList.sort((a, b) => {
+          if (a.tanggal !== b.tanggal) return a.tanggal.localeCompare(b.tanggal);
+          return a.nama.localeCompare(b.nama);
+        });
+
+        if (rowsList.length === 0) {
+          alert('Tidak ada data presensi untuk diekspor pada rentang tanggal tersebut.');
+          return;
+        }
+
+        const formatTime = (isoStr) => {
+          if (!isoStr) return '-';
+          return new Date(isoStr).toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          });
+        };
+
+        const header = [
+          'No',
+          'Tanggal',
+          'NIP',
+          'Nama Pegawai',
+          'Waktu Datang',
+          'Jarak Datang (m)',
+          'Koordinat Datang',
+          'Waktu Pulang',
+          'Jarak Pulang (m)',
+          'Koordinat Pulang',
+          'Status Kehadiran'
+        ];
+
+        const csvLines = [header.map(csvEscape).join(',')];
+
+        rowsList.forEach((item, idx) => {
+          const waktuDatang = item.datang ? formatTime(item.datang.created_at) : '-';
+          const jarakDatang = item.datang ? item.datang.distance_meter : '-';
+          const koordsDatang = item.datang
+            ? `${Number(item.datang.latitude).toFixed(6)}, ${Number(item.datang.longitude).toFixed(6)}`
+            : '-';
+
+          const waktuPulang = item.pulang ? formatTime(item.pulang.created_at) : '-';
+          const jarakPulang = item.pulang ? item.pulang.distance_meter : '-';
+          const koordsPulang = item.pulang
+            ? `${Number(item.pulang.latitude).toFixed(6)}, ${Number(item.pulang.longitude).toFixed(6)}`
+            : '-';
+
+          let status = 'Belum Presensi';
+          if (item.datang && item.pulang) status = 'Lengkap (Datang & Pulang)';
+          else if (item.datang) status = 'Hanya Presensi Datang';
+          else if (item.pulang) status = 'Hanya Presensi Pulang';
+
+          const line = [
+            idx + 1,
+            item.tanggal,
+            item.nip,
+            item.nama,
+            waktuDatang,
+            jarakDatang,
+            koordsDatang,
+            waktuPulang,
+            jarakPulang,
+            koordsPulang,
+            status
+          ].map(csvEscape).join(',');
+
+          csvLines.push(line);
+        });
+
+        const filename =
+          dateStart === dateEnd
+            ? `Rekap_Presensi_${dateStart}.csv`
+            : `Rekap_Presensi_${dateStart}_sd_${dateEnd}.csv`;
+
+        // Tambahkan UTF-8 BOM (\uFEFF) agar Microsoft Excel membaca kolom dengan rapi
+        const blob = new Blob(['\uFEFF' + csvLines.join('\n')], {
+          type: 'text/csv;charset=utf-8;'
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert('Gagal mengekspor rekap presensi: ' + err.message);
+      } finally {
+        btnExport.disabled = false;
+        btnExport.textContent = originalText;
+      }
+    }
+
+    document.getElementById('btn-export-recap').addEventListener('click', exportAttendanceRecapCsv);
     document.getElementById('btn-refresh-logs').addEventListener('click', loadAttendanceLogs);
-    document.getElementById('filter-date').addEventListener('change', loadAttendanceLogs);
+    document.getElementById('filter-date-start').addEventListener('change', loadAttendanceLogs);
+    document.getElementById('filter-date-end').addEventListener('change', loadAttendanceLogs);
+    document.getElementById('filter-jenis').addEventListener('change', loadAttendanceLogs);
     document.getElementById('filter-search').addEventListener('input', loadAttendanceLogs);
     document.getElementById('btn-close-modal').addEventListener('click', () => {
       document.getElementById('photo-modal').classList.add('hidden');
@@ -708,7 +993,6 @@
         progressCount.textContent = `0 / ${rows.length}`;
         progressBar.style.width = '45%';
 
-        // Kirim seluruh baris dalam 1 panggilan RPC (bebas rate limit Auth)
         const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_bulk_import_employees', {
           p_employees: rows,
           p_email_domain: APP_CONFIG.DEFAULT_EMAIL_DOMAIN
@@ -906,7 +1190,6 @@
     document.getElementById('emp-search-input').addEventListener('input', filterAndRenderEmployees);
     document.getElementById('btn-refresh-emp').addEventListener('click', loadEmployees);
 
-    // Modal Edit Pegawai: Batal & Simpan
     const editModal = document.getElementById('edit-emp-modal');
     document.getElementById('btn-cancel-edit').addEventListener('click', () => {
       editModal.classList.add('hidden');
@@ -955,7 +1238,7 @@
     });
 
     // ===================================================================
-    // 8. PENGATURAN TITIK KOORDINAT & RADIUS KANTOR
+    // 8. PENGATURAN TITIK KOORDINAT, RADIUS, & JADWAL DATANG/PULANG
     // ===================================================================
     async function loadOfficeLocation() {
       const { data } = await supabase
@@ -970,6 +1253,22 @@
         document.getElementById('loc-lat').value = data.latitude;
         document.getElementById('loc-lng').value = data.longitude;
         document.getElementById('loc-radius').value = data.radius_meter;
+      }
+    }
+
+    async function loadAttendanceSchedule() {
+      const { data } = await supabase
+        .from('attendance_settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+
+      if (data) {
+        document.getElementById('sched-datang-mulai').value = String(data.datang_mulai).slice(0, 5);
+        document.getElementById('sched-datang-selesai').value = String(data.datang_selesai).slice(0, 5);
+        document.getElementById('sched-pulang-mulai').value = String(data.pulang_mulai).slice(0, 5);
+        document.getElementById('sched-pulang-selesai').value = String(data.pulang_selesai).slice(0, 5);
+        document.getElementById('sched-timezone').value = data.timezone || 'Asia/Jakarta';
       }
     }
 
@@ -1016,6 +1315,45 @@
         alert('Titik koordinat dan radius kantor berhasil disimpan!');
       } catch (err) {
         alert('Gagal menyimpan lokasi: ' + err.message);
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+
+    document.getElementById('schedule-config-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btnSave = document.getElementById('btn-save-sched');
+      btnSave.disabled = true;
+
+      try {
+        const datangMulai = document.getElementById('sched-datang-mulai').value;
+        const datangSelesai = document.getElementById('sched-datang-selesai').value;
+        const pulangMulai = document.getElementById('sched-pulang-mulai').value;
+        const pulangSelesai = document.getElementById('sched-pulang-selesai').value;
+        const timezone = document.getElementById('sched-timezone').value;
+
+        if (!(datangMulai < datangSelesai && datangSelesai < pulangMulai && pulangMulai < pulangSelesai)) {
+          throw new Error(
+            'Urutan jam tidak valid. Pastikan: Jam Mulai Datang < Batas Akhir Datang < Jam Mulai Pulang < Batas Akhir Pulang.'
+          );
+        }
+
+        const { error } = await supabase.from('attendance_settings').upsert({
+          id: 1,
+          datang_mulai: `${datangMulai}:00`,
+          datang_selesai: `${datangSelesai}:00`,
+          pulang_mulai: `${pulangMulai}:00`,
+          pulang_selesai: `${pulangSelesai}:00`,
+          timezone,
+          updated_at: new Date().toISOString()
+        });
+
+        if (error) throw error;
+
+        await loadAttendanceSchedule();
+        alert('Jadwal jam presensi datang & pulang berhasil disimpan!');
+      } catch (err) {
+        alert('Gagal menyimpan jadwal: ' + err.message);
       } finally {
         btnSave.disabled = false;
       }
