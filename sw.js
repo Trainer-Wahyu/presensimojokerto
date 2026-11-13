@@ -1,50 +1,64 @@
-const CACHE_NAME = 'presensi-kiosk-v10';
-const STATIC_ASSETS = [
+const CACHE_NAME = 'presensi-kiosk-v11;
+
+const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './js/app.js?v=10',
+  './js/supabase-client.js',
+  './js/pwa-gate.js',
+  './js/device-id.js',
+  './js/geo-guard.js',
+  './js/camera-liveness.js',
   './assets/icon-192.png',
   './assets/icon-512.png'
 ];
 
+// Instal & langsung aktifkan Service Worker baru tanpa menunggu tab ditutup
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).catch(() => {})
+  );
 });
 
+// Hapus seluruh cache versi lama (v1..v9) dan ambil alih kendali halaman segera
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
           .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
+          .map((oldKey) => caches.delete(oldKey))
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
+// Strategi Network-First untuk aplikasi lokal agar pembaruan kode selalu langsung aktif
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const req = event.request;
+  if (req.method !== 'GET') return;
 
-  // Jangan pernah cache request non-GET atau trafik ke Supabase API
-  if (event.request.method !== 'GET' || url.hostname.includes('supabase.co')) {
+  const url = new URL(req.url);
+
+  // Jangan pernah cache permintaan API Supabase
+  if (url.hostname.includes('supabase.co')) {
     return;
   }
 
-  // Strategi Network-First dengan fallback ke Cache
-  event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && url.origin === location.origin) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-        }
-        return networkResponse;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  // Untuk file aplikasi sendiri (same-origin): utamakan jaringan terbaru, fallback ke cache
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(req)
+        .then((networkRes) => {
+          if (networkRes && networkRes.status === 200) {
+            const copy = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          }
+          return networkRes;
+        })
+        .catch(() => caches.match(req))
+    );
+  }
 });
