@@ -13,7 +13,7 @@ import { startLivenessCapture } from './camera-liveness.js';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('./sw.js?v=10')
+      .register('./sw.js?v=11')
       .then((reg) => reg.update().catch(() => {}))
       .catch((err) => console.warn('Registrasi Service Worker gagal:', err));
   });
@@ -133,12 +133,17 @@ function clearPermissionWatcher() {
 function purgeLocalAuthTokens() {
   try {
     Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('sb-') && key.includes('auth-token')) {
+      if (key.startsWith('sb-')) {
         localStorage.removeItem(key);
       }
     });
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith('sb-')) {
+        sessionStorage.removeItem(key);
+      }
+    });
   } catch {
-    // Abaikan jika penyimpanan lokal dibatasi
+    // Abaikan jika penyimpanan dibatasi
   }
 }
 
@@ -163,7 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // =====================================================================
 async function bootstrapAttendanceLifecycle() {
   purgeLocalAuthTokens();
-  supabase.auth.signOut({ scope: 'local' }).catch(() => {});
 
   appState.deviceId = await getBoundDeviceId();
 
@@ -347,8 +351,6 @@ async function handleLoginSubmit(event) {
     await runLocationCheckFlow();
   } catch (err) {
     purgeLocalAuthTokens();
-    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
-
     appState.currentUser = null;
     appState.userProfile = null;
     appState.activeScheduleType = null;
@@ -609,8 +611,8 @@ function renderSuccessReceipt(photoBlob, coords, rpcResult, todaySummary) {
   if (badgeEl) {
     badgeEl.textContent = isPulang ? 'PRESENSI PULANG' : 'PRESENSI DATANG';
     badgeEl.className = isPulang
-      ? 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 mb-1.5'
-      : 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30 mb-1.5';
+      ? 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 mb-1'
+      : 'inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30 mb-1';
   }
 
   const titleText =
@@ -817,30 +819,13 @@ async function handleDownloadReceiptPng() {
 }
 
 // =====================================================================
-// 11. SELESAI & KEMBALI KE HALAMAN AUTENTIKASI PEGAWAI (INSTAN 0ms)
+// 11. SELESAI & KEMBALI KE HALAMAN AUTENTIKASI PEGAWAI (INSTAN + RELOAD PWA)
 // =====================================================================
 function handleReturnToLogin() {
-  // 1. Pindah tampilan seketika ke form Autentikasi Pegawai tanpa menunggu jaringan
+  // 1. Pindah tampilan seketika ke halaman Autentikasi Pegawai
   switchView('view-login');
-  window.scrollTo({ top: 0, behavior: 'instant' });
 
-  // 2. Reset formulir & pesan galat
-  const loginForm = document.getElementById('login-form');
-  if (loginForm) loginForm.reset();
-
-  const alertBox = document.getElementById('login-alert');
-  if (alertBox) {
-    alertBox.classList.add('hidden');
-    alertBox.textContent = '';
-  }
-
-  const btnSubmit = document.getElementById('btn-submit-login');
-  if (btnSubmit) {
-    btnSubmit.disabled = false;
-    btnSubmit.textContent = 'Masuk & Verifikasi Lokasi';
-  }
-
-  // 3. Hentikan kamera, bersihkan memori, & hapus sesi lokal di latar belakang
+  // 2. Hentikan kamera, bersihkan memori, & hapus seluruh token sesi lokal
   stopActiveCamera();
   clearPermissionWatcher();
 
@@ -856,5 +841,9 @@ function handleReturnToLogin() {
   appState.lastReceiptPayload = null;
 
   purgeLocalAuthTokens();
-  supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+
+  // 3. Muat ulang halaman awal di dalam jendela PWA yang sama untuk mereset memori klien
+  setTimeout(() => {
+    window.location.replace('./index.html');
+  }, 60);
 }
